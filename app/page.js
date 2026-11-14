@@ -54,6 +54,7 @@ export default function Home() {
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
+  const [walletRequests, setWalletRequests] = useState([]);
 
   // Admin Room ID & Cancel States
   const [selectedMatchId, setSelectedMatchId] = useState("");
@@ -86,12 +87,16 @@ export default function Home() {
             wallet: 0,
             freeFireUid: "",
             freeFireName: "",
+            transactions: [],
             createdAt: new Date()
           };
           await setDoc(userRef, initialData);
           setUserData(initialData);
         }
         fetchTournaments();
+        if (currentUser.email === ADMIN_EMAIL) {
+          fetchWalletRequests();
+        }
       } else {
         setUser(null);
         setUserData(null);
@@ -105,6 +110,12 @@ export default function Home() {
     const querySnapshot = await getDocs(collection(db, "tournaments"));
     const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setTournaments(list);
+  };
+
+  const fetchWalletRequests = async () => {
+    const querySnapshot = await getDocs(collection(db, "wallet_requests"));
+    const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    setWalletRequests(list.filter(r => r.status === "Pending"));
   };
 
   const handleGoogleLogin = async () => {
@@ -168,7 +179,6 @@ export default function Home() {
     fetchTournaments();
   };
 
-  // 🛑 Cancel Match & Refund Entry Fee to All Players
   const handleCancelAndRefundMatch = async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
@@ -180,22 +190,73 @@ export default function Home() {
     const entryFeeAmount = Number(matchToCancel.entryFee) || 0;
     const playersList = matchToCancel.players || [];
 
-    // Refund wallet balance to each joined player
     for (const player of playersList) {
       if (player.uid && entryFeeAmount > 0) {
         const playerRef = doc(db, "users", player.uid);
+        const refundTx = {
+          text: `Refund for Cancelled Match: ${matchToCancel.title}`,
+          amount: `+₹${entryFeeAmount}`,
+          date: new Date().toLocaleString()
+        };
         await updateDoc(playerRef, {
-          wallet: increment(entryFeeAmount)
+          wallet: increment(entryFeeAmount),
+          transactions: arrayUnion(refundTx)
         });
       }
     }
 
-    // Delete or mark match as cancelled from database
     await deleteDoc(doc(db, "tournaments", cancelMatchId));
-
     alert(`Match cancelled successfully! Refunded ₹${entryFeeAmount} to ${playersList.length} players.`);
     setCancelMatchId("");
     fetchTournaments();
+  };
+
+  // 🟢 Admin Approve or Reject Wallet Requests
+  const handleProcessRequest = async (req, action) => {
+    if (!isAdmin) return;
+    const reqRef = doc(db, "wallet_requests", req.id);
+    const userRef = doc(db, "users", req.userId);
+
+    if (action === "APPROVE") {
+      if (req.type === "ADD") {
+        const tx = {
+          text: `Added Money via UTR: ${req.utr}`,
+          amount: `+₹${req.amount}`,
+          date: new Date().toLocaleString()
+        };
+        await updateDoc(userRef, {
+          wallet: increment(req.amount),
+          transactions: arrayUnion(tx)
+        });
+      } else if (req.type === "WITHDRAW") {
+        const tx = {
+          text: `Withdrawal Paid to UPI: ${req.upiId}`,
+          amount: `-₹${req.amount}`,
+          date: new Date().toLocaleString()
+        };
+        await updateDoc(userRef, {
+          transactions: arrayUnion(tx)
+        });
+      }
+      await updateDoc(reqRef, { status: "Approved" });
+      alert("Request Approved Successfully!");
+    } else {
+      if (req.type === "WITHDRAW") {
+        // Refund back to user wallet if withdrawal rejected
+        const tx = {
+          text: `Withdrawal Rejected & Refunded`,
+          amount: `+₹${req.amount}`,
+          date: new Date().toLocaleString()
+        };
+        await updateDoc(userRef, {
+          wallet: increment(req.amount),
+          transactions: arrayUnion(tx)
+        });
+      }
+      await updateDoc(reqRef, { status: "Rejected" });
+      alert("Request Rejected.");
+    }
+    fetchWalletRequests();
   };
 
   const handleJoinMatch = async (match) => {
@@ -213,7 +274,16 @@ export default function Home() {
     const userRef = doc(db, "users", user.uid);
     const matchRef = doc(db, "tournaments", match.id);
 
-    await updateDoc(userRef, { wallet: newBalance });
+    const joinTx = {
+      text: `Joined Match: ${match.title}`,
+      amount: `-₹${match.entryFee}`,
+      date: new Date().toLocaleString()
+    };
+
+    await updateDoc(userRef, { 
+      wallet: newBalance,
+      transactions: arrayUnion(joinTx)
+    });
     await updateDoc(matchRef, {
       players: arrayUnion({
         uid: user.uid,
@@ -222,9 +292,9 @@ export default function Home() {
       })
     });
 
-    setUserData({ ...userData, wallet: newBalance });
+    setUserData({ ...userData, wallet: newBalance, transactions: [...(userData.transactions || []), joinTx] });
     fetchTournaments();
-    alert("Match Joined! Room ID & Password match time se 10 min pehle yahan dikhega.");
+    alert("Match Joined Successfully! Entry fee deducted from wallet.");
   };
 
   const handleAddMoneyRequest = async (e) => {
@@ -240,7 +310,7 @@ export default function Home() {
       status: "Pending",
       createdAt: new Date()
     });
-    alert("Deposit Request bhej di gayi hai! Verify hokar wallet mein add ho jayega.");
+    alert("Deposit Request bhej di gayi hai! Admin verify karke jald wallet mein add kar dega.");
     setAddAmount("");
     setUtrNumber("");
   };
@@ -266,7 +336,7 @@ export default function Home() {
     });
 
     setUserData({ ...userData, wallet: newBalance });
-    alert("Withdrawal Request successful!");
+    alert("Withdrawal Request bhej di gayi hai!");
     setWithdrawAmount("");
     setWithdrawUpi("");
   };
@@ -380,7 +450,7 @@ export default function Home() {
           onClick={() => setActiveTab("wallet")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
-          💳 Wallet (Add / Withdraw)
+          💳 Wallet & History
         </button>
         
         {isAdmin && (
@@ -450,85 +520,144 @@ export default function Home() {
         </div>
       )}
 
+      {/* TAB 2: WALLET & TRANSACTION HISTORY */}
       {activeTab === "wallet" && (
-        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
-            <span className="text-sm text-slate-400">Available Balance</span>
-            <span className="text-2xl font-extrabold text-green-400">₹{userData?.wallet ?? 0}</span>
-          </div>
+        <div className="max-w-md mx-auto space-y-6">
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
+              <span className="text-sm text-slate-400">Available Balance</span>
+              <span className="text-2xl font-extrabold text-green-400">₹{userData?.wallet ?? 0}</span>
+            </div>
 
-          <div className="grid grid-cols-2 gap-2 mb-6 bg-slate-950 p-1 rounded-lg">
-            <button 
-              onClick={() => setWalletMode("add")}
-              className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : "text-slate-400"}`}
-            >
-              ➕ Add Money
-            </button>
-            <button 
-              onClick={() => setWalletMode("withdraw")}
-              className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : "text-slate-400"}`}
-            >
-              💸 Withdraw
-            </button>
-          </div>
+            <div className="grid grid-cols-2 gap-2 mb-6 bg-slate-950 p-1 rounded-lg">
+              <button 
+                onClick={() => setWalletMode("add")}
+                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : "text-slate-400"}`}
+              >
+                ➕ Add Money
+              </button>
+              <button 
+                onClick={() => setWalletMode("withdraw")}
+                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+              >
+                💸 Withdraw
+              </button>
+            </div>
 
-          {walletMode === "add" ? (
-            <div>
-              <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg text-center mb-4">
-                <p className="text-xs text-slate-400 mb-1">UPI ID:</p>
-                <p className="text-base font-mono font-bold text-yellow-400 select-all">jbr@upi</p>
+            {walletMode === "add" ? (
+              <div>
+                <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg text-center mb-4">
+                  <p className="text-xs text-slate-400 mb-1">UPI ID:</p>
+                  <p className="text-base font-mono font-bold text-yellow-400 select-all">jbr@upi</p>
+                </div>
+                <form onSubmit={handleAddMoneyRequest} className="space-y-3">
+                  <input 
+                    type="number" 
+                    placeholder="Amount Paid (₹)" 
+                    value={addAmount} 
+                    onChange={(e) => setAddAmount(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="12-Digit UTR Number" 
+                    value={utrNumber} 
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  />
+                  <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                    Submit Deposit Request
+                  </button>
+                </form>
               </div>
-              <form onSubmit={handleAddMoneyRequest} className="space-y-3">
+            ) : (
+              <form onSubmit={handleWithdrawRequest} className="space-y-3">
                 <input 
                   type="number" 
-                  placeholder="Amount Paid (₹)" 
-                  value={addAmount} 
-                  onChange={(e) => setAddAmount(e.target.value)}
+                  placeholder="Withdraw Amount (Min ₹30)" 
+                  value={withdrawAmount} 
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                   required
                 />
                 <input 
                   type="text" 
-                  placeholder="12-Digit UTR Number" 
-                  value={utrNumber} 
-                  onChange={(e) => setUtrNumber(e.target.value)}
+                  placeholder="Your UPI ID" 
+                  value={withdrawUpi} 
+                  onChange={(e) => setWithdrawUpi(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                   required
                 />
-                <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                  Submit Deposit Request
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                  Request Withdrawal
                 </button>
               </form>
+            )}
+          </div>
+
+          {/* Transaction History Section */}
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {(!userData?.transactions || userData.transactions.length === 0) ? (
+                <p className="text-xs text-slate-500 text-center py-4">Koi transaction history nahi hai.</p>
+              ) : (
+                userData.transactions.map((tx, idx) => (
+                  <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                    <div>
+                      <p className="font-semibold text-slate-300">{tx.text}</p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{tx.date}</p>
+                    </div>
+                    <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
+                      {tx.amount}
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
-          ) : (
-            <form onSubmit={handleWithdrawRequest} className="space-y-3">
-              <input 
-                type="number" 
-                placeholder="Withdraw Amount (Min ₹30)" 
-                value={withdrawAmount} 
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required
-              />
-              <input 
-                type="text" 
-                placeholder="Your UPI ID" 
-                value={withdrawUpi} 
-                onChange={(e) => setWithdrawUpi(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required
-              />
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Request Withdrawal
-              </button>
-            </form>
-          )}
+          </div>
         </div>
       )}
 
       {/* TAB 3: ADMIN PANEL */}
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-md mx-auto space-y-6">
+          {/* 0. Approve Pending Payments */}
+          <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl">
+            <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
+            {walletRequests.length === 0 ? (
+              <p className="text-xs text-slate-500">Koi pending request nahi hai.</p>
+            ) : (
+              <div className="space-y-3">
+                {walletRequests.map(req => (
+                  <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
+                    <div className="flex justify-between">
+                      <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
+                      <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
+                        {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
+                      </span>
+                    </div>
+                    {req.type === 'ADD' ? (
+                      <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
+                    ) : (
+                      <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
+                    )}
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                        Approve
+                      </button>
+                      <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* 1. Create Match */}
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
@@ -611,7 +740,6 @@ export default function Home() {
           {/* 3. Cancel Match & Refund */}
           <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
-            <p className="text-xs text-slate-400 mb-4">Match cancel karne par sabhi joined players ka entry fee automatic unke wallet mein wapas refund ho jayega.</p>
             <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
               <select 
                 value={cancelMatchId} 
