@@ -80,6 +80,10 @@ export default function Home() {
         
         if (userSnap.exists()) {
           const data = userSnap.data();
+          // Ensure wallet is always a valid number
+          if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
+            data.wallet = 0;
+          }
           setUserData(data);
           if (data.freeFireUid) {
             setFfUid(data.freeFireUid);
@@ -281,14 +285,15 @@ export default function Home() {
     if (match.players?.some(p => p.uid === user.uid)) {
       return alert("Aap pehle hi is match mein join ho chuke hain!");
     }
-    if (userData.wallet < match.entryFee) {
+    const currentWallet = Number(userData.wallet) || 0;
+    if (currentWallet < match.entryFee) {
       alert("Wallet mein balance kam hai! Pehle Add Money karein.");
       setActiveTab("wallet");
       setWalletMode("add");
       return;
     }
 
-    const newBalance = userData.wallet - match.entryFee;
+    const newBalance = currentWallet - match.entryFee;
     const userRef = doc(db, "users", user.uid);
     const matchRef = doc(db, "tournaments", match.id);
 
@@ -336,11 +341,12 @@ export default function Home() {
   const handleWithdrawRequest = async (e) => {
     e.preventDefault();
     const amt = Number(withdrawAmount);
+    const currentWallet = Number(userData.wallet) || 0;
     if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
-    if (amt > userData.wallet) return alert("Aapke wallet mein itna balance nahi hai!");
+    if (amt > currentWallet) return alert("Aapke wallet mein itna balance nahi hai!");
     if (!withdrawUpi) return alert("Apna UPI ID daalein!");
 
-    const newBalance = userData.wallet - amt;
+    const newBalance = currentWallet - amt;
     await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
     await addDoc(collection(db, "wallet_requests"), {
       type: "WITHDRAW",
@@ -764,7 +770,7 @@ export default function Home() {
 
           <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
-            <form onSubmit={handleCancelAndMatchRefundMatch => handleCancelAndRefundMatch} className="space-y-3">
+            <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
               <select 
                 value={cancelMatchId} 
                 onChange={(e) => setCancelMatchId(e.target.value)}
