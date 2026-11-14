@@ -129,25 +129,28 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
-  // 🛑 STRICT FREE FIRE UID & IGN VALIDATION
+  // 🛑 RIGID VALIDATION FOR FREE FIRE UID
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
-    
-    // Check if UID is numeric and at least 6 to 12 digits long
-    const uidRegex = /^\d{6,12}$/;
-    if (!uidRegex.test(ffUid)) {
-      alert("⚠️ Galat Free Fire UID! Kripya apni asli 6 se 12 digit ki UID numbers mein daalein.");
+
+    const cleanUid = ffUid.trim();
+    const cleanName = ffName.trim();
+
+    // Must be strictly numeric and between 8 to 12 digits
+    const uidRegex = /^\d{8,12}$/;
+    if (!uidRegex.test(cleanUid)) {
+      alert("⚠️ Error: Free Fire UID hamesha 8 se 12 digits ka valid number honi chahiye! (Jaise: 24589631)");
       return;
     }
 
-    if (!ffName || ffName.trim().length < 3) {
-      alert("⚠️ In-Game Name (IGN) kam se kam 3 akshar ka hona chahiye.");
+    if (cleanName.length < 3) {
+      alert("⚠️ Error: In-Game Name (IGN) kam se kam 3 akshar ka hona chahiye.");
       return;
     }
 
     const userRef = doc(db, "users", user.uid);
-    await setDoc(userRef, { freeFireUid: ffUid, freeFireName: ffName.trim() }, { merge: true });
-    setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName.trim() });
+    await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
+    setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
     alert("✅ Free Fire ID Successfully Linked!");
   };
 
@@ -391,11 +394,11 @@ export default function Home() {
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-5">Apni Asli Free Fire UID link karo (6-12 digits):</p>
+          <p className="text-sm text-slate-400 mb-5">Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
           <form onSubmit={saveFreeFireDetails} className="space-y-4">
             <input 
-              type="number" 
-              placeholder="Free Fire UID (e.g. 2458963145)" 
+              type="text" 
+              placeholder="Free Fire UID (e.g. 24589631)" 
               value={ffUid} 
               onChange={(e) => setFfUid(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
