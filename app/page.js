@@ -129,12 +129,26 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
+  // 🛑 STRICT FREE FIRE UID & IGN VALIDATION
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
-    if (!ffUid || !ffName) return alert("Dono details bharo bhai!");
+    
+    // Check if UID is numeric and at least 6 to 12 digits long
+    const uidRegex = /^\d{6,12}$/;
+    if (!uidRegex.test(ffUid)) {
+      alert("⚠️ Galat Free Fire UID! Kripya apni asli 6 se 12 digit ki UID numbers mein daalein.");
+      return;
+    }
+
+    if (!ffName || ffName.trim().length < 3) {
+      alert("⚠️ In-Game Name (IGN) kam se kam 3 akshar ka hona chahiye.");
+      return;
+    }
+
     const userRef = doc(db, "users", user.uid);
-    await setDoc(userRef, { freeFireUid: ffUid, freeFireName: ffName }, { merge: true });
-    setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName });
+    await setDoc(userRef, { freeFireUid: ffUid, freeFireName: ffName.trim() }, { merge: true });
+    setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName.trim() });
+    alert("✅ Free Fire ID Successfully Linked!");
   };
 
   const handleCreateMatch = async (e) => {
@@ -211,7 +225,6 @@ export default function Home() {
     fetchTournaments();
   };
 
-  // 🟢 Admin Approve or Reject Wallet Requests
   const handleProcessRequest = async (req, action) => {
     if (!isAdmin) return;
     const reqRef = doc(db, "wallet_requests", req.id);
@@ -242,7 +255,6 @@ export default function Home() {
       alert("Request Approved Successfully!");
     } else {
       if (req.type === "WITHDRAW") {
-        // Refund back to user wallet if withdrawal rejected
         const tx = {
           text: `Withdrawal Rejected & Refunded`,
           amount: `+₹${req.amount}`,
@@ -379,11 +391,11 @@ export default function Home() {
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-5">Apni Free Fire ID link karo:</p>
+          <p className="text-sm text-slate-400 mb-5">Apni Asli Free Fire UID link karo (6-12 digits):</p>
           <form onSubmit={saveFreeFireDetails} className="space-y-4">
             <input 
               type="number" 
-              placeholder="Free Fire UID" 
+              placeholder="Free Fire UID (e.g. 2458963145)" 
               value={ffUid} 
               onChange={(e) => setFfUid(e.target.value)}
               className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
@@ -520,7 +532,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* TAB 2: WALLET & TRANSACTION HISTORY */}
       {activeTab === "wallet" && (
         <div className="max-w-md mx-auto space-y-6">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
@@ -597,7 +608,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Transaction History Section */}
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -621,10 +631,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* TAB 3: ADMIN PANEL */}
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-md mx-auto space-y-6">
-          {/* 0. Approve Pending Payments */}
           <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
             {walletRequests.length === 0 ? (
@@ -658,7 +666,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* 1. Create Match */}
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
             <form onSubmit={handleCreateMatch} className="space-y-3">
@@ -700,7 +707,6 @@ export default function Home() {
             </form>
           </div>
 
-          {/* 2. Update Room ID & Password */}
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
             <form onSubmit={handleUpdateRoom} className="space-y-3">
@@ -737,7 +743,6 @@ export default function Home() {
             </form>
           </div>
 
-          {/* 3. Cancel Match & Refund */}
           <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
             <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
