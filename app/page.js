@@ -35,7 +35,6 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// 🔒 SIRF TERA EMAIL ADMIN RAHEGA
 const ADMIN_EMAIL = "mohammedjabbar189@gmail.com";
 
 export default function Home() {
@@ -44,7 +43,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   
-  // Free Fire Profile Form
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
   
@@ -55,8 +53,13 @@ export default function Home() {
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
 
-  // Wallet Add / Withdraw States
-  const [walletMode, setWalletMode] = useState("add"); // "add" or "withdraw"
+  // Admin Room ID Update State
+  const [selectedMatchId, setSelectedMatchId] = useState("");
+  const [roomIdInput, setRoomIdInput] = useState("");
+  const [roomPassInput, setRoomPassInput] = useState("");
+
+  // Wallet States
+  const [walletMode, setWalletMode] = useState("add");
   const [addAmount, setAddAmount] = useState("");
   const [utrNumber, setUtrNumber] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
@@ -77,7 +80,7 @@ export default function Home() {
           const initialData = {
             name: currentUser.displayName,
             email: currentUser.email,
-            wallet: 0, // Signup bonus ₹0
+            wallet: 0, // 👈 Wallet starts at ₹0 now
             freeFireUid: "",
             freeFireName: "",
             createdAt: new Date()
@@ -120,7 +123,6 @@ export default function Home() {
     setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName });
   };
 
-  // Create Match (Only Admin)
   const handleCreateMatch = async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
@@ -144,7 +146,26 @@ export default function Home() {
     setActiveTab("tournaments");
   };
 
-  // Join Match Logic
+  // Admin Update Room ID & Password
+  const handleUpdateRoom = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!selectedMatchId || !roomIdInput || !roomPassInput) {
+      alert("Saari details bharein!");
+      return;
+    }
+    const matchRef = doc(db, "tournaments", selectedMatchId);
+    await updateDoc(matchRef, {
+      roomId: roomIdInput,
+      roomPass: roomPassInput
+    });
+    alert("Room ID & Password Updated Successfully!");
+    setRoomIdInput("");
+    setRoomPassInput("");
+    setSelectedMatchId("");
+    fetchTournaments();
+  };
+
   const handleJoinMatch = async (match) => {
     if (match.players?.some(p => p.uid === user.uid)) {
       return alert("Aap pehle hi is match mein join ho chuke hain!");
@@ -174,7 +195,6 @@ export default function Home() {
     alert("Match Joined! Room ID & Password match time se 10 min pehle yahan dikhega.");
   };
 
-  // Add Money Request
   const handleAddMoneyRequest = async (e) => {
     e.preventDefault();
     if (!addAmount || !utrNumber) return alert("Amount aur UTR number dono daalein!");
@@ -188,18 +208,17 @@ export default function Home() {
       status: "Pending",
       createdAt: new Date()
     });
-    alert("Deposit Request bhej di gayi hai! 5-10 min mein verify hokar wallet mein add ho jayega.");
+    alert("Deposit Request bhej di gayi hai! Verify hokar wallet mein add ho jayega.");
     setAddAmount("");
     setUtrNumber("");
   };
 
-  // Withdraw Request
   const handleWithdrawRequest = async (e) => {
     e.preventDefault();
     const amt = Number(withdrawAmount);
     if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
     if (amt > userData.wallet) return alert("Aapke wallet mein itna balance nahi hai!");
-    if (!withdrawUpi) return alert("Apna PhonePe / UPI ID daalein!");
+    if (!withdrawUpi) return alert("Apna UPI ID daalein!");
 
     const newBalance = userData.wallet - amt;
     await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
@@ -215,7 +234,7 @@ export default function Home() {
     });
 
     setUserData({ ...userData, wallet: newBalance });
-    alert("Withdrawal Request successful! Aapke UPI par jald hi payment bhej di jayegi.");
+    alert("Withdrawal Request successful!");
     setWithdrawAmount("");
     setWithdrawUpi("");
   };
@@ -228,7 +247,6 @@ export default function Home() {
     );
   }
 
-  // 🔒 1. LOGIN SCREEN
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
@@ -237,12 +255,6 @@ export default function Home() {
           <h1 className="text-3xl font-extrabold text-yellow-400 mb-2">BR Esports Arena</h1>
           <p className="text-slate-400 text-sm mb-6">Free Fire Solo Custom Room Tournaments. Jeeto Real Cash!</p>
           
-          <div className="bg-amber-950/40 border border-amber-600/40 p-3 rounded-lg mb-6 text-xs text-amber-200 text-left">
-            🔥 <b>Match Rules:</b><br/>
-            • Free Giveaway Booyah = ₹30<br/>
-            • Paid Match Booyah = ₹300 (Min 3 Kills zaroori!) + ₹3/kill
-          </div>
-
           <button 
             onClick={handleGoogleLogin}
             className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg cursor-pointer"
@@ -255,42 +267,34 @@ export default function Home() {
             </svg>
             Continue with Google
           </button>
-          <p className="text-xs text-slate-500 mt-4">Sign up karte hi ₹50 Bonus Wallet mein milega!</p>
         </div>
       </main>
     );
   }
 
-  // 🎯 2. FREE FIRE UID LINK SCREEN
   if (userData && !userData.freeFireUid) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl">
           <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-5">Andar jaane se pehle apni Free Fire ID link karo:</p>
+          <p className="text-sm text-slate-400 mb-5">Apni Free Fire ID link karo:</p>
           <form onSubmit={saveFreeFireDetails} className="space-y-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Free Fire UID (Numbers)</label>
-              <input 
-                type="number" 
-                placeholder="e.g. 2458963145" 
-                value={ffUid} 
-                onChange={(e) => setFfUid(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">In-Game Name (IGN)</label>
-              <input 
-                type="text" 
-                placeholder="e.g. JBR_Max" 
-                value={ffName} 
-                onChange={(e) => setFfName(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
-                required
-              />
-            </div>
+            <input 
+              type="number" 
+              placeholder="Free Fire UID" 
+              value={ffUid} 
+              onChange={(e) => setFfUid(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
+              required
+            />
+            <input 
+              type="text" 
+              placeholder="In-Game Name (IGN)" 
+              value={ffName} 
+              onChange={(e) => setFfName(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
+              required
+            />
             <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer">
               Save & Enter Arena 🚀
             </button>
@@ -300,7 +304,6 @@ export default function Home() {
     );
   }
 
-  // 🏆 3. MAIN DASHBOARD
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
@@ -331,10 +334,9 @@ export default function Home() {
       </header>
 
       <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
-        🔥 <b>Rules:</b> Free Giveaway mein Booyah = ₹30. Paid Matches mein Booyah = ₹300 (Minimum 3 Kills zaroori!) + ₹3 per kill extra. No camping, full rush!
+        🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Full rush!
       </div>
 
-      {/* Navigation Tabs */}
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
         <button 
           onClick={() => setActiveTab("tournaments")}
@@ -349,7 +351,6 @@ export default function Home() {
           💳 Wallet (Add / Withdraw)
         </button>
         
-        {/* 🔒 SIRF ADMIN KO HI DIKHEGA */}
         {isAdmin && (
           <button 
             onClick={() => setActiveTab("admin")}
@@ -360,7 +361,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* TAB 1: TOURNAMENTS */}
       {activeTab === "tournaments" && (
         <div className="space-y-4">
           {tournaments.length === 0 ? (
@@ -418,7 +418,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* TAB 2: WALLET (ADD MONEY & WITHDRAW) */}
       {activeTab === "wallet" && (
         <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl">
           <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
@@ -426,7 +425,6 @@ export default function Home() {
             <span className="text-2xl font-extrabold text-green-400">₹{userData?.wallet ?? 0}</span>
           </div>
 
-          {/* Toggle Add / Withdraw */}
           <div className="grid grid-cols-2 gap-2 mb-6 bg-slate-950 p-1 rounded-lg">
             <button 
               onClick={() => setWalletMode("add")}
@@ -445,9 +443,8 @@ export default function Home() {
           {walletMode === "add" ? (
             <div>
               <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg text-center mb-4">
-                <p className="text-xs text-slate-400 mb-1">PhonePe / GPay / Paytm UPI ID:</p>
+                <p className="text-xs text-slate-400 mb-1">UPI ID:</p>
                 <p className="text-base font-mono font-bold text-yellow-400 select-all">jbr@upi</p>
-                <p className="text-[11px] text-slate-500 mt-1">Pehle is UPI par payment karein, phir niche UTR number daalein.</p>
               </div>
               <form onSubmit={handleAddMoneyRequest} className="space-y-3">
                 <input 
@@ -460,7 +457,7 @@ export default function Home() {
                 />
                 <input 
                   type="text" 
-                  placeholder="12-Digit UPI Ref / UTR Number" 
+                  placeholder="12-Digit UTR Number" 
                   value={utrNumber} 
                   onChange={(e) => setUtrNumber(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
@@ -472,87 +469,115 @@ export default function Home() {
               </form>
             </div>
           ) : (
-            <div>
-              <form onSubmit={handleWithdrawRequest} className="space-y-3">
-                <p className="text-xs text-slate-400 mb-2">Minimum withdrawal ₹30 hai. Winning amount seedha aapke UPI par aayega.</p>
-                <input 
-                  type="number" 
-                  placeholder="Withdraw Amount (Min ₹30)" 
-                  value={withdrawAmount} 
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                  required
-                />
-                <input 
-                  type="text" 
-                  placeholder="Your PhonePe / GPay UPI ID" 
-                  value={withdrawUpi} 
-                  onChange={(e) => setWithdrawUpi(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                  required
-                />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                  Request Withdrawal
-                </button>
-              </form>
-            </div>
+            <form onSubmit={handleWithdrawRequest} className="space-y-3">
+              <input 
+                type="number" 
+                placeholder="Withdraw Amount (Min ₹30)" 
+                value={withdrawAmount} 
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required
+              />
+              <input 
+                type="text" 
+                placeholder="Your UPI ID" 
+                value={withdrawUpi} 
+                onChange={(e) => setWithdrawUpi(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required
+              />
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                Request Withdrawal
+              </button>
+            </form>
           )}
         </div>
       )}
 
-      {/* TAB 3: ADMIN PANEL (ONLY FOR MOHAMMEDJABBAR189@GMAIL.COM) */}
+      {/* TAB 3: ADMIN PANEL */}
       {activeTab === "admin" && isAdmin && (
-        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl">
-          <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
-          <form onSubmit={handleCreateMatch} className="space-y-4">
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Match Title</label>
+        <div className="max-w-md mx-auto space-y-6">
+          {/* 1. Create Match */}
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
+            <form onSubmit={handleCreateMatch} className="space-y-3">
               <input 
                 type="text" 
-                placeholder="e.g. Free Giveaway Solo Match" 
+                placeholder="Match Title (e.g. Solo Bermuda)" 
                 value={matchTitle} 
                 onChange={(e) => setMatchTitle(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required 
               />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Match Date & Timing</label>
               <input 
                 type="text" 
-                placeholder="e.g. Today, 8:30 PM" 
+                placeholder="Match Timing (e.g. Today, 8:30 PM)" 
                 value={matchTime} 
                 onChange={(e) => setMatchTime(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required 
               />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Entry Fee (₹)</label>
               <input 
                 type="number" 
-                placeholder="0 for Free" 
+                placeholder="Entry Fee (0 for Free)" 
                 value={entryFee} 
                 onChange={(e) => setEntryFee(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required 
               />
-            </div>
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Prize Pool</label>
               <input 
                 type="text" 
-                placeholder="e.g. Booyah ₹300 + ₹3/Kill" 
+                placeholder="Prize Pool (e.g. ₹300)" 
                 value={prizePool} 
                 onChange={(e) => setPrizePool(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required 
               />
-            </div>
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
-              Publish Match
-            </button>
-          </form>
+              <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
+                Publish Match
+              </button>
+            </form>
+          </div>
+
+          {/* 2. Update Room ID & Password */}
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
+            <form onSubmit={handleUpdateRoom} className="space-y-3">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Select Match</label>
+                <select 
+                  value={selectedMatchId} 
+                  onChange={(e) => setSelectedMatchId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  required
+                >
+                  <option value="">-- Choose Match --</option>
+                  {tournaments.map(m => (
+                    <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
+                  ))}
+                </select>
+              </div>
+              <input 
+                type="text" 
+                placeholder="Room ID" 
+                value={roomIdInput} 
+                onChange={(e) => setRoomIdInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+              <input 
+                type="text" 
+                placeholder="Room Password" 
+                value={roomPassInput} 
+                onChange={(e) => setRoomPassInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+              <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                Publish Room Credentials
+              </button>
+            </form>
+          </div>
         </div>
       )}
     </main>
