@@ -18,14 +18,15 @@ import {
   addDoc 
 } from "firebase/firestore";
 
-// ⚠️ Yahan apni asli Firebase Config keys zaroor daalna (Firebase Console -> Project Settings se copy karke)
+// 🔥 Teri Asli Firebase Configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyBFiL3JdeZMdxiMphMnPABY7cY2ccADzRs",
   authDomain: "br-esports-arena.firebaseapp.com",
   projectId: "br-esports-arena",
-  storageBucket: "br-esports-arena.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  storageBucket: "br-esports-arena.firebasestorage.app",
+  messagingSenderId: "147249736410",
+  appId: "1:147249736410:web:44688104082a4c7fad93e3",
+  measurementId: "G-B4KD3XKWE1"
 };
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
@@ -38,17 +39,14 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   
-  // Free Fire Profile Form
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
   
-  // Admin Form State
   const [matchTitle, setMatchTitle] = useState("");
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
 
-  // Check Login Status
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -62,7 +60,7 @@ export default function Home() {
           const initialData = {
             name: currentUser.displayName,
             email: currentUser.email,
-            wallet: 50,
+            wallet: 50, // Signup bonus ₹50
             freeFireUid: "",
             freeFireName: "",
             createdAt: new Date()
@@ -80,14 +78,12 @@ export default function Home() {
     return () => unsubscribe();
   }, []);
 
-  // Fetch Matches
   const fetchTournaments = async () => {
     const querySnapshot = await getDocs(collection(db, "tournaments"));
     const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     setTournaments(list);
   };
 
-  // Google Login
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
@@ -97,10 +93,8 @@ export default function Home() {
     }
   };
 
-  // Logout
   const handleLogout = () => signOut(auth);
 
-  // Save Free Fire UID
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
     if (!ffUid || !ffName) return alert("Dono details bharo bhai!");
@@ -109,7 +103,6 @@ export default function Home() {
     setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName });
   };
 
-  // Create Match
   const handleCreateMatch = async (e) => {
     e.preventDefault();
     await addDoc(collection(db, "tournaments"), {
@@ -135,7 +128,7 @@ export default function Home() {
     );
   }
 
-  // 🔒 STEP 1: AGAR USER LOGIN NAHI HAI TOH SIRF LOGIN SCREEN DIKHAO
+  // 🔒 1. AGAR LOGIN NAHI HAI TOH SIRF LOGIN SCREEN
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
@@ -152,7 +145,7 @@ export default function Home() {
 
           <button 
             onClick={handleGoogleLogin}
-            className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg"
+            className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg cursor-pointer"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.9 5 12 5z"/>
@@ -168,7 +161,7 @@ export default function Home() {
     );
   }
 
-  // 🎯 STEP 2: LOGIN HO GAYA PAR FREE FIRE UID LINK NAHI HAI TOH YEH DIKHAO
+  // 🎯 2. AGAR LOGIN HAI PAR FREE FIRE UID LINK NAHI HAI
   if (userData && !userData.freeFireUid) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
@@ -198,7 +191,7 @@ export default function Home() {
                 required
               />
             </div>
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg">
+            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer">
               Save & Enter Arena 🚀
             </button>
           </form>
@@ -207,7 +200,7 @@ export default function Home() {
     );
   }
 
-  // 🏆 STEP 3: AB PLAYER ANDAR AA GAYA (MAIN DASHBOARD)
+  // 🏆 3. MAIN DASHBOARD (TOURNAMENTS, WALLET, ADMIN)
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
@@ -226,7 +219,7 @@ export default function Home() {
           </div>
           <button 
             onClick={handleLogout}
-            className="bg-red-600/20 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition"
+            className="bg-red-600/20 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
           >
             Logout
           </button>
@@ -240,19 +233,19 @@ export default function Home() {
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3">
         <button 
           onClick={() => setActiveTab("tournaments")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
           🏆 Tournaments
         </button>
         <button 
           onClick={() => setActiveTab("wallet")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
           💳 My Wallet
         </button>
         <button 
           onClick={() => setActiveTab("admin")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
           🔒 Admin Panel
         </button>
@@ -277,7 +270,7 @@ export default function Home() {
                 <div className="text-right">
                   <p className="text-xs text-slate-400">Entry Fee</p>
                   <p className="text-lg font-bold text-white mb-2">{match.entryFee === 0 ? "FREE" : `₹${match.entryFee}`}</p>
-                  <button onClick={() => alert("Match Joined! Room ID & Password match se 10 min pehle dikhega.")} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-sm">
+                  <button onClick={() => alert("Match Joined! Room ID & Password match se 10 min pehle dikhega.")} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-sm cursor-pointer">
                     Join Now
                   </button>
                 </div>
@@ -323,7 +316,7 @@ export default function Home() {
               className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
               required 
             />
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded">
+            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
               Publish Match
             </button>
           </form>
