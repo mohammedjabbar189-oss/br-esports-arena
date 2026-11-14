@@ -569,10 +569,17 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg text-center mb-4">
-                  <p className="text-xs text-slate-400 mb-1">UPI ID:</p>
-                  <p className="text-base font-mono font-bold text-yellow-400 select-all">jbr@upi</p>
+                {/* 📱 PhonePe QR Code Display */}
+                <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center mb-4 flex flex-col items-center">
+                  <p className="text-xs text-slate-400 mb-2">Scan & Pay via PhonePe / Any UPI App:</p>
+                  <img 
+                    src="/qr-code.png" 
+                    alt="BR Esports QR Code" 
+                    className="w-48 h-48 object-contain rounded-xl bg-white p-2 border border-slate-700 shadow-md mb-2" 
+                  />
+                  <p className="text-xs text-yellow-400 font-mono">Terminal 1-Q894151488</p>
                 </div>
+
                 <form onSubmit={handleAddMoneyRequest} className="space-y-3">
                   <input 
                     type="number" 
@@ -757,7 +764,7 @@ export default function Home() {
 
           <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
-            <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
+            <form onSubmit={handleCancelAndMatchRefundMatch => handleCancelAndRefundMatch} className="space-y-3">
               <select 
                 value={cancelMatchId} 
                 onChange={(e) => setCancelMatchId(e.target.value)}
