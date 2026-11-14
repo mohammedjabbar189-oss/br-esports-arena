@@ -13,9 +13,11 @@ import {
   doc, 
   getDoc, 
   setDoc, 
+  updateDoc,
   collection, 
   getDocs, 
-  addDoc 
+  addDoc,
+  arrayUnion 
 } from "firebase/firestore";
 
 // 🔥 Teri Asli Firebase Configuration
@@ -33,19 +35,34 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// 🔒 SIRF TERA EMAIL ADMIN RAHEGA
+const ADMIN_EMAIL = "mohammedjabbar189@gmail.com";
+
 export default function Home() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   
+  // Free Fire Profile Form
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
   
+  // Admin Match Form
   const [matchTitle, setMatchTitle] = useState("");
+  const [matchTime, setMatchTime] = useState("");
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
+
+  // Wallet Add / Withdraw States
+  const [walletMode, setWalletMode] = useState("add"); // "add" or "withdraw"
+  const [addAmount, setAddAmount] = useState("");
+  const [utrNumber, setUtrNumber] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [withdrawUpi, setWithdrawUpi] = useState("");
+
+  const isAdmin = user?.email === ADMIN_EMAIL;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -103,21 +120,104 @@ export default function Home() {
     setUserData({ ...userData, freeFireUid: ffUid, freeFireName: ffName });
   };
 
+  // Create Match (Only Admin)
   const handleCreateMatch = async (e) => {
     e.preventDefault();
+    if (!isAdmin) return alert("Unauthorized!");
     await addDoc(collection(db, "tournaments"), {
       title: matchTitle,
+      timing: matchTime,
       entryFee: Number(entryFee),
       prizePool: prizePool,
+      roomId: "Pending",
+      roomPass: "Pending",
+      players: [],
       status: "Active",
       createdAt: new Date()
     });
     alert("Match Live Ho Gaya!");
     setMatchTitle("");
+    setMatchTime("");
     setEntryFee("");
     setPrizePool("");
     fetchTournaments();
     setActiveTab("tournaments");
+  };
+
+  // Join Match Logic
+  const handleJoinMatch = async (match) => {
+    if (match.players?.some(p => p.uid === user.uid)) {
+      return alert("Aap pehle hi is match mein join ho chuke hain!");
+    }
+    if (userData.wallet < match.entryFee) {
+      alert("Wallet mein balance kam hai! Pehle Add Money karein.");
+      setActiveTab("wallet");
+      setWalletMode("add");
+      return;
+    }
+
+    const newBalance = userData.wallet - match.entryFee;
+    const userRef = doc(db, "users", user.uid);
+    const matchRef = doc(db, "tournaments", match.id);
+
+    await updateDoc(userRef, { wallet: newBalance });
+    await updateDoc(matchRef, {
+      players: arrayUnion({
+        uid: user.uid,
+        ffUid: userData.freeFireUid,
+        ffName: userData.freeFireName
+      })
+    });
+
+    setUserData({ ...userData, wallet: newBalance });
+    fetchTournaments();
+    alert("Match Joined! Room ID & Password match time se 10 min pehle yahan dikhega.");
+  };
+
+  // Add Money Request
+  const handleAddMoneyRequest = async (e) => {
+    e.preventDefault();
+    if (!addAmount || !utrNumber) return alert("Amount aur UTR number dono daalein!");
+    await addDoc(collection(db, "wallet_requests"), {
+      type: "ADD",
+      userId: user.uid,
+      userName: userData.freeFireName,
+      email: user.email,
+      amount: Number(addAmount),
+      utr: utrNumber,
+      status: "Pending",
+      createdAt: new Date()
+    });
+    alert("Deposit Request bhej di gayi hai! 5-10 min mein verify hokar wallet mein add ho jayega.");
+    setAddAmount("");
+    setUtrNumber("");
+  };
+
+  // Withdraw Request
+  const handleWithdrawRequest = async (e) => {
+    e.preventDefault();
+    const amt = Number(withdrawAmount);
+    if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
+    if (amt > userData.wallet) return alert("Aapke wallet mein itna balance nahi hai!");
+    if (!withdrawUpi) return alert("Apna PhonePe / UPI ID daalein!");
+
+    const newBalance = userData.wallet - amt;
+    await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
+    await addDoc(collection(db, "wallet_requests"), {
+      type: "WITHDRAW",
+      userId: user.uid,
+      userName: userData.freeFireName,
+      email: user.email,
+      amount: amt,
+      upiId: withdrawUpi,
+      status: "Pending",
+      createdAt: new Date()
+    });
+
+    setUserData({ ...userData, wallet: newBalance });
+    alert("Withdrawal Request successful! Aapke UPI par jald hi payment bhej di jayegi.");
+    setWithdrawAmount("");
+    setWithdrawUpi("");
   };
 
   if (loading) {
@@ -128,7 +228,7 @@ export default function Home() {
     );
   }
 
-  // 🔒 1. AGAR LOGIN NAHI HAI TOH SIRF LOGIN SCREEN
+  // 🔒 1. LOGIN SCREEN
   if (!user) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
@@ -161,7 +261,7 @@ export default function Home() {
     );
   }
 
-  // 🎯 2. AGAR LOGIN HAI PAR FREE FIRE UID LINK NAHI HAI
+  // 🎯 2. FREE FIRE UID LINK SCREEN
   if (userData && !userData.freeFireUid) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
@@ -200,7 +300,7 @@ export default function Home() {
     );
   }
 
-  // 🏆 3. MAIN DASHBOARD (TOURNAMENTS, WALLET, ADMIN)
+  // 🏆 3. MAIN DASHBOARD
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
@@ -212,11 +312,15 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => { setActiveTab("wallet"); setWalletMode("add"); }}
+            className="bg-slate-900 border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition"
+          >
             <span className="text-xs text-slate-400">Wallet:</span>
             <span className="font-bold text-green-400">₹{userData?.wallet ?? 0}</span>
-          </div>
+            <span className="bg-green-600 text-white text-xs px-1.5 py-0.5 rounded font-bold">+ Add</span>
+          </button>
           <button 
             onClick={handleLogout}
             className="bg-red-600/20 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
@@ -230,92 +334,221 @@ export default function Home() {
         🔥 <b>Rules:</b> Free Giveaway mein Booyah = ₹30. Paid Matches mein Booyah = ₹300 (Minimum 3 Kills zaroori!) + ₹3 per kill extra. No camping, full rush!
       </div>
 
-      <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3">
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
         <button 
           onClick={() => setActiveTab("tournaments")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
           🏆 Tournaments
         </button>
         <button 
           onClick={() => setActiveTab("wallet")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
         >
-          💳 My Wallet
+          💳 Wallet (Add / Withdraw)
         </button>
-        <button 
-          onClick={() => setActiveTab("admin")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
-        >
-          🔒 Admin Panel
-        </button>
+        
+        {/* 🔒 SIRF ADMIN KO HI DIKHEGA */}
+        {isAdmin && (
+          <button 
+            onClick={() => setActiveTab("admin")}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          >
+            🔒 Admin Panel
+          </button>
+        )}
       </div>
 
+      {/* TAB 1: TOURNAMENTS */}
       {activeTab === "tournaments" && (
         <div className="space-y-4">
           {tournaments.length === 0 ? (
             <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
               <span className="text-4xl mb-2 block">🎮</span>
               <p className="text-slate-400">Filhal koi match active nahi hai.</p>
-              <p className="text-sm text-slate-500 mt-1">Admin panel se naya match create karein!</p>
             </div>
           ) : (
-            tournaments.map((match) => (
-              <div key={match.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex justify-between items-center">
-                <div>
-                  <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-bold uppercase">Solo • Bermuda</span>
-                  <h3 className="text-lg font-bold mt-1">{match.title}</h3>
-                  <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
+            tournaments.map((match) => {
+              const isJoined = match.players?.some(p => p.uid === user.uid);
+              return (
+                <div key={match.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-bold uppercase">Solo • Bermuda</span>
+                      {match.timing && (
+                        <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-semibold">
+                          ⏰ {match.timing}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold mt-2">{match.title}</h3>
+                    <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
+                    <p className="text-xs text-slate-400 mt-1">Players Joined: {match.players?.length || 0} / 48</p>
+                    
+                    {isJoined && (
+                      <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-1.5 rounded text-xs text-green-400 font-mono">
+                        Room ID: {match.roomId || "Pending"} | Pass: {match.roomPass || "Pending"}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="sm:text-right flex sm:block justify-between items-center border-t sm:border-t-0 border-slate-800 pt-3 sm:pt-0">
+                    <div>
+                      <p className="text-xs text-slate-400">Entry Fee</p>
+                      <p className="text-lg font-bold text-white mb-2">{match.entryFee === 0 ? "FREE" : `₹${match.entryFee}`}</p>
+                    </div>
+                    {isJoined ? (
+                      <span className="bg-green-600/20 border border-green-600 text-green-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                        ✅ Joined
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handleJoinMatch(match)} 
+                        className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-5 py-2 rounded-lg text-sm cursor-pointer"
+                      >
+                        Join Now
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-slate-400">Entry Fee</p>
-                  <p className="text-lg font-bold text-white mb-2">{match.entryFee === 0 ? "FREE" : `₹${match.entryFee}`}</p>
-                  <button onClick={() => alert("Match Joined! Room ID & Password match se 10 min pehle dikhega.")} className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-4 py-1.5 rounded-lg text-sm cursor-pointer">
-                    Join Now
-                  </button>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       )}
 
+      {/* TAB 2: WALLET (ADD MONEY & WITHDRAW) */}
       {activeTab === "wallet" && (
-        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl text-center">
-          <h2 className="text-lg font-bold mb-2">Add Money via PhonePe / GPay</h2>
-          <p className="text-sm text-slate-400 mb-4">Pay to UPI: <span className="text-yellow-400 font-mono">jbr@upi</span></p>
-          <p className="text-xs text-slate-500">Payment karne ke baad UTR / Screenshot Admin ko bhejein.</p>
+        <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl">
+          <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
+            <span className="text-sm text-slate-400">Available Balance</span>
+            <span className="text-2xl font-extrabold text-green-400">₹{userData?.wallet ?? 0}</span>
+          </div>
+
+          {/* Toggle Add / Withdraw */}
+          <div className="grid grid-cols-2 gap-2 mb-6 bg-slate-950 p-1 rounded-lg">
+            <button 
+              onClick={() => setWalletMode("add")}
+              className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : "text-slate-400"}`}
+            >
+              ➕ Add Money
+            </button>
+            <button 
+              onClick={() => setWalletMode("withdraw")}
+              className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+            >
+              💸 Withdraw
+            </button>
+          </div>
+
+          {walletMode === "add" ? (
+            <div>
+              <div className="bg-slate-950 border border-slate-800 p-4 rounded-lg text-center mb-4">
+                <p className="text-xs text-slate-400 mb-1">PhonePe / GPay / Paytm UPI ID:</p>
+                <p className="text-base font-mono font-bold text-yellow-400 select-all">jbr@upi</p>
+                <p className="text-[11px] text-slate-500 mt-1">Pehle is UPI par payment karein, phir niche UTR number daalein.</p>
+              </div>
+              <form onSubmit={handleAddMoneyRequest} className="space-y-3">
+                <input 
+                  type="number" 
+                  placeholder="Amount Paid (₹)" 
+                  value={addAmount} 
+                  onChange={(e) => setAddAmount(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  required
+                />
+                <input 
+                  type="text" 
+                  placeholder="12-Digit UPI Ref / UTR Number" 
+                  value={utrNumber} 
+                  onChange={(e) => setUtrNumber(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  required
+                />
+                <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                  Submit Deposit Request
+                </button>
+              </form>
+            </div>
+          ) : (
+            <div>
+              <form onSubmit={handleWithdrawRequest} className="space-y-3">
+                <p className="text-xs text-slate-400 mb-2">Minimum withdrawal ₹30 hai. Winning amount seedha aapke UPI par aayega.</p>
+                <input 
+                  type="number" 
+                  placeholder="Withdraw Amount (Min ₹30)" 
+                  value={withdrawAmount} 
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  required
+                />
+                <input 
+                  type="text" 
+                  placeholder="Your PhonePe / GPay UPI ID" 
+                  value={withdrawUpi} 
+                  onChange={(e) => setWithdrawUpi(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  required
+                />
+                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                  Request Withdrawal
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       )}
 
-      {activeTab === "admin" && (
+      {/* TAB 3: ADMIN PANEL (ONLY FOR MOHAMMEDJABBAR189@GMAIL.COM) */}
+      {activeTab === "admin" && isAdmin && (
         <div className="max-w-md mx-auto bg-slate-900 border border-slate-800 p-6 rounded-xl">
           <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
           <form onSubmit={handleCreateMatch} className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="Match Title (e.g. Free Giveaway Solo)" 
-              value={matchTitle} 
-              onChange={(e) => setMatchTitle(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-              required 
-            />
-            <input 
-              type="number" 
-              placeholder="Entry Fee (0 for Free)" 
-              value={entryFee} 
-              onChange={(e) => setEntryFee(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-              required 
-            />
-            <input 
-              type="text" 
-              placeholder="Prize (e.g. Booyah ₹30)" 
-              value={prizePool} 
-              onChange={(e) => setPrizePool(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-              required 
-            />
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Match Title</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Free Giveaway Solo Match" 
+                value={matchTitle} 
+                onChange={(e) => setMatchTitle(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Match Date & Timing</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Today, 8:30 PM" 
+                value={matchTime} 
+                onChange={(e) => setMatchTime(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Entry Fee (₹)</label>
+              <input 
+                type="number" 
+                placeholder="0 for Free" 
+                value={entryFee} 
+                onChange={(e) => setEntryFee(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Prize Pool</label>
+              <input 
+                type="text" 
+                placeholder="e.g. Booyah ₹300 + ₹3/Kill" 
+                value={prizePool} 
+                onChange={(e) => setPrizePool(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required 
+              />
+            </div>
             <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
               Publish Match
             </button>
