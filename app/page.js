@@ -14,10 +14,12 @@ import {
   getDoc, 
   setDoc, 
   updateDoc,
+  deleteDoc,
   collection, 
   getDocs, 
   addDoc,
-  arrayUnion 
+  arrayUnion,
+  increment 
 } from "firebase/firestore";
 
 // 🔥 Teri Asli Firebase Configuration
@@ -53,10 +55,11 @@ export default function Home() {
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
 
-  // Admin Room ID Update State
+  // Admin Room ID & Cancel States
   const [selectedMatchId, setSelectedMatchId] = useState("");
   const [roomIdInput, setRoomIdInput] = useState("");
   const [roomPassInput, setRoomPassInput] = useState("");
+  const [cancelMatchId, setCancelMatchId] = useState("");
 
   // Wallet States
   const [walletMode, setWalletMode] = useState("add");
@@ -80,7 +83,7 @@ export default function Home() {
           const initialData = {
             name: currentUser.displayName,
             email: currentUser.email,
-            wallet: 0, // 👈 Wallet starts at ₹0 now
+            wallet: 0,
             freeFireUid: "",
             freeFireName: "",
             createdAt: new Date()
@@ -146,7 +149,6 @@ export default function Home() {
     setActiveTab("tournaments");
   };
 
-  // Admin Update Room ID & Password
   const handleUpdateRoom = async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
@@ -163,6 +165,36 @@ export default function Home() {
     setRoomIdInput("");
     setRoomPassInput("");
     setSelectedMatchId("");
+    fetchTournaments();
+  };
+
+  // 🛑 Cancel Match & Refund Entry Fee to All Players
+  const handleCancelAndRefundMatch = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!cancelMatchId) return alert("Please select a match to cancel!");
+
+    const matchToCancel = tournaments.find(m => m.id === cancelMatchId);
+    if (!matchToCancel) return alert("Match not found!");
+
+    const entryFeeAmount = Number(matchToCancel.entryFee) || 0;
+    const playersList = matchToCancel.players || [];
+
+    // Refund wallet balance to each joined player
+    for (const player of playersList) {
+      if (player.uid && entryFeeAmount > 0) {
+        const playerRef = doc(db, "users", player.uid);
+        await updateDoc(playerRef, {
+          wallet: increment(entryFeeAmount)
+        });
+      }
+    }
+
+    // Delete or mark match as cancelled from database
+    await deleteDoc(doc(db, "tournaments", cancelMatchId));
+
+    alert(`Match cancelled successfully! Refunded ₹${entryFeeAmount} to ${playersList.length} players.`);
+    setCancelMatchId("");
     fetchTournaments();
   };
 
@@ -543,20 +575,17 @@ export default function Home() {
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
             <form onSubmit={handleUpdateRoom} className="space-y-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Select Match</label>
-                <select 
-                  value={selectedMatchId} 
-                  onChange={(e) => setSelectedMatchId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                  required
-                >
-                  <option value="">-- Choose Match --</option>
-                  {tournaments.map(m => (
-                    <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
-                  ))}
-                </select>
-              </div>
+              <select 
+                value={selectedMatchId} 
+                onChange={(e) => setSelectedMatchId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required
+              >
+                <option value="">-- Choose Match --</option>
+                {tournaments.map(m => (
+                  <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
+                ))}
+              </select>
               <input 
                 type="text" 
                 placeholder="Room ID" 
@@ -575,6 +604,28 @@ export default function Home() {
               />
               <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
                 Publish Room Credentials
+              </button>
+            </form>
+          </div>
+
+          {/* 3. Cancel Match & Refund */}
+          <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
+            <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
+            <p className="text-xs text-slate-400 mb-4">Match cancel karne par sabhi joined players ka entry fee automatic unke wallet mein wapas refund ho jayega.</p>
+            <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
+              <select 
+                value={cancelMatchId} 
+                onChange={(e) => setCancelMatchId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                required
+              >
+                <option value="">-- Select Match to Cancel --</option>
+                {tournaments.map(m => (
+                  <option key={m.id} value={m.id}>{m.title} ({m.players?.length || 0} players joined)</option>
+                ))}
+              </select>
+              <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                Cancel Match & Refund Players
               </button>
             </form>
           </div>
