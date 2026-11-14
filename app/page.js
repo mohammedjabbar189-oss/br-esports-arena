@@ -77,7 +77,7 @@ export default function Home() {
           const initialData = {
             name: currentUser.displayName,
             email: currentUser.email,
-            wallet: 50, // Signup bonus ₹50
+            wallet: 0, // Signup bonus ₹0
             freeFireUid: "",
             freeFireName: "",
             createdAt: new Date()
