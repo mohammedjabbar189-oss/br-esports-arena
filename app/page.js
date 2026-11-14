@@ -79,7 +79,12 @@ export default function Home() {
         const userSnap = await getDoc(userRef);
         
         if (userSnap.exists()) {
-          setUserData(userSnap.data());
+          const data = userSnap.data();
+          setUserData(data);
+          if (data.freeFireUid) {
+            setFfUid(data.freeFireUid);
+            setFfName(data.freeFireName || "");
+          }
         } else {
           const initialData = {
             name: currentUser.displayName,
@@ -129,17 +134,15 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
-  // 🛑 RIGID VALIDATION FOR FREE FIRE UID
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
     const cleanUid = ffUid.trim();
     const cleanName = ffName.trim();
 
-    // Must be strictly numeric and between 8 to 12 digits
     const uidRegex = /^\d{8,12}$/;
     if (!uidRegex.test(cleanUid)) {
-      alert("⚠️ Error: Free Fire UID hamesha 8 se 12 digits ka valid number honi chahiye! (Jaise: 24589631)");
+      alert("⚠️ Error: Free Fire UID hamesha 8 se 12 digits ka valid number honi chahiye!");
       return;
     }
 
@@ -151,7 +154,7 @@ export default function Home() {
     const userRef = doc(db, "users", user.uid);
     await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
     setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
-    alert("✅ Free Fire ID Successfully Linked!");
+    alert("✅ Free Fire ID Successfully Updated!");
   };
 
   const handleCreateMatch = async (e) => {
@@ -309,7 +312,7 @@ export default function Home() {
 
     setUserData({ ...userData, wallet: newBalance, transactions: [...(userData.transactions || []), joinTx] });
     fetchTournaments();
-    alert("Match Joined Successfully! Entry fee deducted from wallet.");
+    alert("Match Joined Successfully!");
   };
 
   const handleAddMoneyRequest = async (e) => {
@@ -325,7 +328,7 @@ export default function Home() {
       status: "Pending",
       createdAt: new Date()
     });
-    alert("Deposit Request bhej di gayi hai! Admin verify karke jald wallet mein add kar dega.");
+    alert("Deposit Request bhej di gayi hai!");
     setAddAmount("");
     setUtrNumber("");
   };
@@ -450,8 +453,14 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
-        🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Full rush!
+      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200 flex justify-between items-center">
+        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
+        <button 
+          onClick={() => setUserData({ ...userData, freeFireUid: "" })}
+          className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-3 py-1 rounded text-xs cursor-pointer whitespace-nowrap ml-2"
+        >
+          ✏️ Edit Profile / UID
+        </button>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
