@@ -1,3 +1,5 @@
+import Script from "next/script";
+
 export const metadata = {
   title: 'BR Esports Arena',
   description: 'Free Fire Tournament Platform',
@@ -12,8 +14,10 @@ export default function RootLayout({ children }) {
       <body className="bg-slate-950 text-white">
         {children}
 
-        {/* Tawk.to Live Chat Widget (Sahi Property ID ke sath) */}
-        <script
+        {/* Tawk.to Live Chat Widget (Next.js Script Component) */}
+        <Script
+          id="tawk-widget"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
