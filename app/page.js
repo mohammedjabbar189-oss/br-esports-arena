@@ -801,6 +801,16 @@ export default function Home() {
         <span>💬</span>
         <span className="text-sm">Live Support</span>
       </a>
+          {/* 📜 Terms & Conditions Footer Note */}
+      <footer className="mt-12 py-6 border-t border-slate-800 text-center text-xs text-slate-400 px-4">
+       <p className="mb-2">
+  © 2026 BR Esports Arena. All rights reserved.
+</p>
+        <p className="max-w-xl mx-auto text-slate-500 leading-relaxed">
+          <strong>Disclaimer:</strong> BR Esports Arena is an Esports Skill-Based Tournament Platform. 
+          This is not a gambling, betting, or lottery app. All matches are purely based on player skills in Free Fire.
+        </p>
+      </footer>
     </main>
   );
 }
