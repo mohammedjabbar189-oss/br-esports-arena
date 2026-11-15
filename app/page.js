@@ -119,12 +119,12 @@ export default function Home() {
       setTournaments(list);
     });
 
-    // 🔥 Yahan add karna hai yeh wallet requests ka listener:
+    // Real-time listener for Admin Wallet Requests
     let unsubscribeRequests = () => {};
-    if (currentUser?.email === ADMIN_EMAIL) {
+    if (auth.currentUser?.email === ADMIN_EMAIL) {
       unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
         const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setWalletRequests(list);
+        setWalletRequests(list.filter(r => r.status === "Pending"));
       });
     }
 
