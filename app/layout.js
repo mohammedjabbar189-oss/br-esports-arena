@@ -1,21 +1,26 @@
+import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Script from "next/script";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "BR Esports Arena - Free Fire Tournaments",
   description: "Play Free Fire Solo Custom Room Tournaments and Win Real Cash!",
 };
 
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html lang="en">
       <body className={inter.className}>
         {children}
 
-        {/* 💬 Tawk.to Live Chat Support */}
+        {/* Tawk.to Live Chat Support */}
         <Script id="tawk-to-chat" strategy="afterInteractive">
           {`
             var Tawk_API=Tawk_API||{}, Tawk_LoadStart=new Date();
