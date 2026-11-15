@@ -779,13 +779,13 @@ export default function Home() {
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required
               >
-                <option value="">-- Select Match to Cancel --</option>
+                <option value="">-- Choose Match to Cancel --</option>
                 {tournaments.map(m => (
-                  <option key={m.id} value={m.id}>{m.title} ({m.players?.length || 0} players joined)</option>
+                  <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0})</option>
                 ))}
               </select>
               <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Cancel Match & Refund Players
+                Cancel Match & Refund All
               </button>
             </form>
           </div>
