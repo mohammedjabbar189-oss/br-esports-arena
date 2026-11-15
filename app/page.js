@@ -127,7 +127,18 @@ export default function Home() {
         setWalletRequests(list.filter(r => r.status === "Pending"));
       });
     }
-
+    // 💬 Tawk.to Live Chat Load
+    if (!document.getElementById("tawk-script")) {
+      window.Tawk_API = window.Tawk_API || {};
+      window.Tawk_LoadStart = new Date();
+      const s1 = document.createElement("script");
+      s1.id = "tawk-script";
+      s1.async = true;
+      s1.src = "https://embed.tawk.to/6af9714fd1045d3c44ac0823/1k7f658b9";
+      s1.charset = "UTF-8";
+      s1.setAttribute("crossorigin", "*");
+      document.body.appendChild(s1);
+    }
     return () => {
       unsubscribeAuth();
       unsubscribeUser();
