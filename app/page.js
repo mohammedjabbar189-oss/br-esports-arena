@@ -791,6 +791,16 @@ export default function Home() {
           </div>
         </div>
       )}
+        {/* 💬 Floating Live Support Button */}
+      <a
+        href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-5 right-5 bg-green-600 hover:bg-green-500 text-white font-bold px-4 py-3 rounded-full shadow-2xl flex items-center gap-2 z-50 transition transform hover:scale-105"
+      >
+        <span>💬</span>
+        <span className="text-sm">Live Support</span>
+      </a>
     </main>
   );
 }
