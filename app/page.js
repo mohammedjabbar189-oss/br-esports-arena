@@ -127,18 +127,20 @@ export default function Home() {
         setWalletRequests(list.filter(r => r.status === "Pending"));
       });
     }
-    // 💬 Tawk.to Live Chat Load
+
+    // 💬 Tawk.to Live Chat Load (Client-side safe)
     if (!document.getElementById("tawk-script")) {
       window.Tawk_API = window.Tawk_API || {};
       window.Tawk_LoadStart = new Date();
       const s1 = document.createElement("script");
       s1.id = "tawk-script";
       s1.async = true;
-      s1.src = "https://embed.tawk.to/6af9714fd1045d3c44ac0823/1k7f658b9";
+      s1.src = "https://embed.tawk.to/6af97899375b123c45407054/1k7f658b9";
       s1.charset = "UTF-8";
       s1.setAttribute("crossorigin", "*");
       document.body.appendChild(s1);
     }
+
     return () => {
       unsubscribeAuth();
       unsubscribeUser();
@@ -775,14 +777,14 @@ export default function Home() {
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required 
               />
-              <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Publish Room Credentials
+              <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
+                Update Room Details
               </button>
             </form>
           </div>
 
           <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
-            <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
+            <h2 className="text-lg font-bold mb-4 text-red-400">Cancel Match & Refund Entry Fees</h2>
             <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
               <select 
                 value={cancelMatchId} 
@@ -790,13 +792,13 @@ export default function Home() {
                 className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                 required
               >
-                <option value="">-- Select Match to Cancel --</option>
+                <option value="">-- Choose Match to Cancel --</option>
                 {tournaments.map(m => (
-                  <option key={m.id} value={m.id}>{m.title} ({m.players?.length || 0} players joined)</option>
+                  <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0})</option>
                 ))}
               </select>
               <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Cancel Match & Refund Players
+                Cancel Match & Refund All Players
               </button>
             </form>
           </div>
