@@ -16,7 +16,7 @@ import {
   updateDoc,
   deleteDoc,
   collection, 
-  getDocs, 
+  onSnapshot, 
   addDoc,
   arrayUnion,
   increment 
@@ -72,60 +72,69 @@ export default function Home() {
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeUser = () => {};
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
         const userRef = doc(db, "users", currentUser.uid);
-        const userSnap = await getDoc(userRef);
         
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          // Ensure wallet is always a valid number
-          if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
-            data.wallet = 0;
+        // Real-time listener for user wallet and profile updates
+        unsubscribeUser = onSnapshot(userRef, (userSnap) => {
+          if (userSnap.exists()) {
+            const data = userSnap.data();
+            if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
+              data.wallet = 0;
+            }
+            setUserData(data);
+            if (data.freeFireUid) {
+              setFfUid(data.freeFireUid);
+              setFfName(data.freeFireName || "");
+            }
+          } else {
+            const initialData = {
+              name: currentUser.displayName,
+              email: currentUser.email,
+              wallet: 0,
+              freeFireUid: "",
+              freeFireName: "",
+              transactions: [],
+              createdAt: new Date()
+            };
+            setDoc(userRef, initialData);
+            setUserData(initialData);
           }
-          setUserData(data);
-          if (data.freeFireUid) {
-            setFfUid(data.freeFireUid);
-            setFfName(data.freeFireName || "");
-          }
-        } else {
-          const initialData = {
-            name: currentUser.displayName,
-            email: currentUser.email,
-            wallet: 0,
-            freeFireUid: "",
-            freeFireName: "",
-            transactions: [],
-            createdAt: new Date()
-          };
-          await setDoc(userRef, initialData);
-          setUserData(initialData);
-        }
-        fetchTournaments();
-        if (currentUser.email === ADMIN_EMAIL) {
-          fetchWalletRequests();
-        }
+        });
+
       } else {
         setUser(null);
         setUserData(null);
       }
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    // Real-time listener for Tournaments (Auto-refresh matches & players list)
+    const unsubscribeTournaments = onSnapshot(collection(db, "tournaments"), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setTournaments(list);
+    });
+
+    // Real-time listener for Admin Wallet Requests
+    let unsubscribeRequests = () => {};
+    if (auth.currentUser?.email === ADMIN_EMAIL) {
+      unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
+        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setWalletRequests(list.filter(r => r.status === "Pending"));
+      });
+    }
+
+    return () => {
+      unsubscribeAuth();
+      unsubscribeUser();
+      unsubscribeTournaments();
+      unsubscribeRequests();
+    };
   }, []);
-
-  const fetchTournaments = async () => {
-    const querySnapshot = await getDocs(collection(db, "tournaments"));
-    const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setTournaments(list);
-  };
-
-  const fetchWalletRequests = async () => {
-    const querySnapshot = await getDocs(collection(db, "wallet_requests"));
-    const list = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-    setWalletRequests(list.filter(r => r.status === "Pending"));
-  };
 
   const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
@@ -180,7 +189,6 @@ export default function Home() {
     setMatchTime("");
     setEntryFee("");
     setPrizePool("");
-    fetchTournaments();
     setActiveTab("tournaments");
   };
 
@@ -200,7 +208,6 @@ export default function Home() {
     setRoomIdInput("");
     setRoomPassInput("");
     setSelectedMatchId("");
-    fetchTournaments();
   };
 
   const handleCancelAndRefundMatch = async (e) => {
@@ -232,7 +239,6 @@ export default function Home() {
     await deleteDoc(doc(db, "tournaments", cancelMatchId));
     alert(`Match cancelled successfully! Refunded ₹${entryFeeAmount} to ${playersList.length} players.`);
     setCancelMatchId("");
-    fetchTournaments();
   };
 
   const handleProcessRequest = async (req, action) => {
@@ -278,7 +284,6 @@ export default function Home() {
       await updateDoc(reqRef, { status: "Rejected" });
       alert("Request Rejected.");
     }
-    fetchWalletRequests();
   };
 
   const handleJoinMatch = async (match) => {
@@ -315,8 +320,6 @@ export default function Home() {
       })
     });
 
-    setUserData({ ...userData, wallet: newBalance, transactions: [...(userData.transactions || []), joinTx] });
-    fetchTournaments();
     alert("Match Joined Successfully!");
   };
 
@@ -359,7 +362,6 @@ export default function Home() {
       createdAt: new Date()
     });
 
-    setUserData({ ...userData, wallet: newBalance });
     alert("Withdrawal Request bhej di gayi hai!");
     setWithdrawAmount("");
     setWithdrawUpi("");
