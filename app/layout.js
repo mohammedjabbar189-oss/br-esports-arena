@@ -1,19 +1,15 @@
-import { Inter } from "next/font/google";
-import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
-
 export const metadata = {
-  title: "BR Esports Arena - Free Fire Tournaments",
-  description: "Play Free Fire Solo Custom Room Tournaments and Win Real Cash!",
+  title: 'BR Esports Arena',
+  description: 'Free Fire Tournament Platform',
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        {children}
-      </body>
+      <head>
+        <script src="https://cdn.tailwindcss.com"></script>
+      </head>
+      <body className="bg-slate-950 text-white">{children}</body>
     </html>
   );
 }
