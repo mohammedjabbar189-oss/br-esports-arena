@@ -13,11 +13,6 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className={inter.className}>
         {children}
-        <script
-          type="text/javascript"
-          src="https://embed.tawk.to/6af97899375b123c45407054/1k7f658b9"
-          async
-        ></script>
       </body>
     </html>
   );
