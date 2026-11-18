@@ -974,7 +974,7 @@ export default function Home() {
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
                 <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
                 <div className="space-y-3 max-h-60 overflow-y-auto">
-                  tournaments.length === 0 ? (
+                  {tournaments.length === 0 ? (
                     <p className="text-xs text-slate-500">Koi match nahi hai.</p>
                   ) : (
                     tournaments.map(m => (
@@ -994,7 +994,7 @@ export default function Home() {
                         )}
                       </div>
                     ))
-                  )
+                  )}
                 </div>
               </div>
 
