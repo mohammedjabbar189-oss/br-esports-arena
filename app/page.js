@@ -18,6 +18,8 @@ import {
   collection, 
   onSnapshot, 
   addDoc,
+  query,
+  where,
   arrayUnion,
   increment 
 } from "firebase/firestore";
@@ -55,6 +57,7 @@ export default function Home() {
   const [prizePool, setPrizePool] = useState("");
   const [tournaments, setTournaments] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
+  const [myRequests, setMyRequests] = useState([]);
 
   // Admin Room ID & Cancel States
   const [selectedMatchId, setSelectedMatchId] = useState("");
@@ -71,10 +74,11 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-useEffect(() => {
+  useEffect(() => {
     let unsubscribeUser = () => {};
     let unsubscribeTournaments = () => {};
     let unsubscribeRequests = () => {};
+    let unsubscribeMyRequests = () => {};
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -108,7 +112,7 @@ useEffect(() => {
           }
         });
 
-        // 🔥 Yahan par check hoga ki current user admin hai ya nahi
+        // 🔥 Admin ke liye pending requests listener
         if (currentUser.email === ADMIN_EMAIL) {
           unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -118,10 +122,19 @@ useEffect(() => {
           setWalletRequests([]);
         }
 
+        // 🔥 User ke liye uski apni requests ka listener
+        const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
+        unsubscribeMyRequests = onSnapshot(q, (snapshot) => {
+          const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          // Latest request upar dikhane ke liye sort kar sakte hain ya aise hi rakh sakte hain
+          setMyRequests(list);
+        });
+
       } else {
         setUser(null);
         setUserData(null);
         setWalletRequests([]);
+        setMyRequests([]);
       }
       setLoading(false);
     });
@@ -137,6 +150,7 @@ useEffect(() => {
       unsubscribeUser();
       unsubscribeTournaments();
       unsubscribeRequests();
+      if (unsubscribeMyRequests) unsubscribeMyRequests();
     };
   }, []);
 
@@ -639,6 +653,46 @@ useEffect(() => {
             )}
           </div>
 
+          {/* ⏳ User ki apni Requests ka Live Status Box */}
+          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+            <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Payment Requests Status</h3>
+            <div className="space-y-2 max-h-45 overflow-y-auto">
+              {(!myRequests || myRequests.length === 0) ? (
+                <p className="text-xs text-slate-500 text-center py-4">Aapne koi payment request nahi bheji hai.</p>
+              ) : (
+                myRequests.map((req, idx) => (
+                  <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                    <div>
+                      <p className="font-semibold text-slate-300">
+                        {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
+                      </p>
+                    </div>
+                    <div>
+                      {req.status === 'Pending' && (
+                        <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
+                          ⏳ Pending
+                        </span>
+                      )}
+                      {req.status === 'Approved' && (
+                        <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                          ✅ Approved
+                        </span>
+                      )}
+                      {req.status === 'Rejected' && (
+                        <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                          ❌ Rejected
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
             <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -795,7 +849,8 @@ useEffect(() => {
           </div>
         </div>
       )}
-        {/* 💬 Floating Live Support Button */}
+
+      {/* 💬 Floating Live Support Button */}
       <a
         href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
         target="_blank"
@@ -805,11 +860,10 @@ useEffect(() => {
         <span>💬</span>
         <span className="text-sm">Live Support</span>
       </a>
-          {/* 📜 Terms & Conditions Footer Note */}
+
+      {/* 📜 Terms & Conditions Footer Note */}
       <footer className="mt-12 py-6 border-t border-slate-800 text-center text-xs text-slate-400 px-4">
-       <p className="mb-2">
-  © 2026 BR Esports Arena. All rights reserved.
-</p>
+        <p className="mb-2">© 2026 BR Esports Arena. All rights reserved.</p>
         <p className="max-w-xl mx-auto text-slate-500 leading-relaxed">
           <strong>Disclaimer:</strong> BR Esports Arena is an Esports Skill-Based Tournament Platform. 
           This is not a gambling, betting, or lottery app. All matches are purely based on player skills in Free Fire.
