@@ -594,7 +594,6 @@ export default function Home() {
                     <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
                     <p className="text-xs text-slate-400 mt-1">Players Joined: {match.players?.length || 0} / 48</p>
                     
-                    {/* 🔥 SECURE ROOM ID: Sirf joined players ko hi Room ID dikhegi */}
                     {isJoined ? (
                       <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-2 rounded text-xs text-green-400 font-mono space-y-1">
                         <p className="font-bold text-yellow-400">🎯 Your Room Credentials:</p>
@@ -658,14 +657,20 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center mb-4 flex flex-col items-center">
-                  <p className="text-xs text-slate-400 mb-2">Scan & Pay via PhonePe / Any UPI App:</p>
-                  <img 
-                    src="/qr-code.png" 
-                    alt="BR Esports QR Code" 
-                    className="w-48 h-48 object-contain rounded-xl bg-white p-2 border border-slate-700 shadow-md mb-2" 
-                  />
-                  <p className="text-xs text-yellow-400 font-mono">Terminal 1-Q894151488</p>
+                {/* 🔥 RESPONSIVE & LARGER QR CODE SECTION */}
+                <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center mb-5 flex flex-col items-center">
+                  <p className="text-xs text-slate-400 mb-3">Scan & Pay via PhonePe / Any UPI App:</p>
+                  
+                  <div className="bg-white p-3 rounded-2xl border border-slate-700 shadow-xl inline-block">
+                    <img 
+                      src="/qr-code.png" 
+                      alt="BR Esports QR Code" 
+                      className="w-64 h-64 sm:w-72 sm:h-72 object-contain mx-auto" 
+                    />
+                  </div>
+                  
+                  <p className="text-xs text-yellow-400 font-mono mt-3">Terminal 1-Q894151488</p>
+                  <p className="text-[11px] text-slate-400 mt-1">📸 PC user hain? Phone se QR scan karein ya UPI ID par pay karein.</p>
                 </div>
 
                 <form onSubmit={handleAddMoneyRequest} className="space-y-3">
@@ -910,7 +915,6 @@ export default function Home() {
                 </form>
               </div>
 
-              {/* 🔥 ADMIN JOINED PLAYERS LIST (To verify & cross-check before room start) */}
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
                 <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
                 <div className="space-y-3 max-h-60 overflow-y-auto">
