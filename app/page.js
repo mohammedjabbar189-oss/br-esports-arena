@@ -362,22 +362,18 @@ export default function Home() {
       return alert("⚠️ Sahi amount daalein!");
     }
 
-    // 🔥 Rule 1: Exact 12-Digit Numeric Check
     const utrRegex = /^\d{12}$/;
     if (!utrRegex.test(cleanUtr)) {
-      return alert("⚠️ Error: UTR number exact 12 digits ka valid number hona chahiye! (No letters or spaces)");
+      return alert("⚠️ Error: UTR number exact 12 digits ka valid number hona chahiye!");
     }
 
     setSubmittingRequest(true);
     try {
-      // 🔥 Rule 2: Check if this UTR already exists in database (Pending or Approved)
       const utrQuery = query(
         collection(db, "wallet_requests"), 
         where("utr", "==", cleanUtr)
       );
       const querySnapshot = await getDocs(utrQuery);
-
-      // Agar koi aisi request mili jo Rejected nahi hai (yaani Pending ya Approved hai)
       const isDuplicate = querySnapshot.docs.some(doc => doc.data().status !== "Rejected");
 
       if (isDuplicate) {
@@ -675,7 +671,7 @@ export default function Home() {
                     maxLength={12}
                     placeholder="Exact 12-Digit UTR Number" 
                     value={utrNumber} 
-                    onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))} // Sirf digits allow karega
+                    onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
                     className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm font-mono"
                     required
                   />
@@ -761,13 +757,14 @@ export default function Home() {
               </div>
             </div>
 
+            {/* 🔥 TRANSACTION HISTORY (Newest First using .slice().reverse()) */}
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
               <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {(!userData?.transactions || userData.transactions.length === 0) ? (
                   <p className="text-xs text-slate-500 text-center py-6">Koi transaction history nahi hai.</p>
                 ) : (
-                  userData.transactions.map((tx, idx) => (
+                  [...userData.transactions].reverse().map((tx, idx) => (
                     <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
                       <div>
                         <p className="font-semibold text-slate-300">{tx.text}</p>
