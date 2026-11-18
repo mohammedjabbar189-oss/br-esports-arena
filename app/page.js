@@ -657,20 +657,32 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                {/* 🔥 RESPONSIVE & LARGER QR CODE SECTION */}
+                {/* 🔥 LARGE & RESPONSIVE QR CODE SECTION (Fixed for PC & Mobile) */}
                 <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center mb-5 flex flex-col items-center">
-                  <p className="text-xs text-slate-400 mb-3">Scan & Pay via PhonePe / Any UPI App:</p>
+                  <p className="text-xs text-slate-400 mb-3 font-semibold">Scan & Pay via PhonePe / Any UPI App:</p>
                   
-                  <div className="bg-white p-3 rounded-2xl border border-slate-700 shadow-xl inline-block">
+                  <div className="bg-white p-4 rounded-2xl border-2 border-yellow-500/50 shadow-2xl inline-block">
                     <img 
                       src="/qr-code.png" 
                       alt="BR Esports QR Code" 
-                      className="w-64 h-64 sm:w-72 sm:h-72 object-contain mx-auto" 
+                      className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain mx-auto block" 
                     />
                   </div>
                   
-                  <p className="text-xs text-yellow-400 font-mono mt-3">Terminal 1-Q894151488</p>
-                  <p className="text-[11px] text-slate-400 mt-1">📸 PC user hain? Phone se QR scan karein ya UPI ID par pay karein.</p>
+                  <div className="mt-3 flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
+                    <span className="text-xs text-slate-400">UPI ID:</span>
+                    <span className="text-xs text-yellow-400 font-mono font-bold">Terminal1.Q894151488@paytm</span>
+                    <button 
+                      onClick={() => {
+                        navigator.clipboard.writeText("Terminal1.Q894151488@paytm");
+                        alert("📋 UPI ID Copied to Clipboard!");
+                      }}
+                      className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer ml-2"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">💻 PC user hain? Mobile se QR scan karein ya upar di gayi UPI ID par pay karein.</p>
                 </div>
 
                 <form onSubmit={handleAddMoneyRequest} className="space-y-3">
@@ -897,7 +909,7 @@ export default function Home() {
                     type="text" 
                     placeholder="Room ID" 
                     value={roomIdInput} 
-                    onChange={(e) => setRoomIdInput(e.target.value)}
+                    onChange={(e) => setRoomIdIdInput(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                     required 
                   />
