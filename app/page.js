@@ -74,10 +74,32 @@ export default function Home() {
   const [withdrawUpi, setWithdrawUpi] = useState("");
   const [submittingRequest, setSubmittingRequest] = useState(false);
 
-  // 🔥 ASLI UPI ID (Exact match)
+  // 🔥 Asli UPI ID
   const MERCHANT_UPI_ID = "Q894151488@ybl";
 
   const isAdmin = user?.email === ADMIN_EMAIL;
+
+  // ⏰ Helper function for 12-hour format with AM/PM
+  const formatDateTime = (createdAt) => {
+    if (!createdAt) return "";
+    let dateObj;
+    if (createdAt.seconds) {
+      dateObj = new Date(createdAt.seconds * 1000);
+    } else {
+      dateObj = new Date(createdAt);
+    }
+    if (isNaN(dateObj.getTime())) return "";
+    return dateObj.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true // Ye 12-hour AM/PM format karega
+    });
+  };
 
   const sortRequestsList = (list) => {
     return list.sort((a, b) => {
@@ -257,7 +279,7 @@ export default function Home() {
         const refundTx = {
           text: `Refund for Cancelled Match: ${matchToCancel.title}`,
           amount: `+₹${entryFeeAmount}`,
-          date: new Date().toLocaleString()
+          date: formatDateTime(new Date())
         };
         await updateDoc(playerRef, {
           wallet: increment(entryFeeAmount),
@@ -281,7 +303,7 @@ export default function Home() {
         const tx = {
           text: `Added Money via UTR: ${req.utr}`,
           amount: `+₹${req.amount}`,
-          date: new Date().toLocaleString()
+          date: formatDateTime(new Date())
         };
         await updateDoc(userRef, {
           wallet: increment(req.amount),
@@ -291,7 +313,7 @@ export default function Home() {
         const tx = {
           text: `Withdrawal Paid to UPI: ${req.upiId}`,
           amount: `-₹${req.amount}`,
-          date: new Date().toLocaleString()
+          date: formatDateTime(new Date())
         };
         await updateDoc(userRef, {
           transactions: arrayUnion(tx)
@@ -304,7 +326,7 @@ export default function Home() {
         const tx = {
           text: `Withdrawal Rejected & Refunded`,
           amount: `+₹${req.amount}`,
-          date: new Date().toLocaleString()
+          date: formatDateTime(new Date())
         };
         await updateDoc(userRef, {
           wallet: increment(req.amount),
@@ -340,7 +362,7 @@ export default function Home() {
     const joinTx = {
       text: `Joined Match: ${match.title}`,
       amount: `-₹${match.entryFee}`,
-      date: new Date().toLocaleString()
+      date: formatDateTime(new Date())
     };
 
     await updateDoc(userRef, { 
@@ -660,7 +682,6 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                {/* 🔥 RESPONSIVE LARGE QR CODE SECTION */}
                 <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center mb-5 flex flex-col items-center">
                   <p className="text-xs text-slate-400 mb-3 font-semibold">Scan & Pay via PhonePe / Any UPI App:</p>
                   
@@ -752,7 +773,7 @@ export default function Home() {
                   <p className="text-xs text-slate-500 text-center py-6">Koi request nahi hai.</p>
                 ) : (
                   myRequests.map((req, idx) => {
-                    const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleString() : "";
+                    const reqDate = formatDateTime(req.createdAt);
                     return (
                       <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
                         <div>
@@ -822,7 +843,7 @@ export default function Home() {
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
                   {walletRequests.map(req => {
-                    const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleString() : "";
+                    const reqDate = formatDateTime(req.createdAt);
                     return (
                       <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
                         <div className="flex justify-between">
