@@ -204,9 +204,8 @@ export default function Home() {
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
-    // 🔒 Security Check: Agar UID pehle se saved hai, toh user dobara khud se change nahi kar sakta!
     if (userData?.freeFireUid) {
-      alert("⚠️ Free Fire UID ek baar save hone ke baad change nahi ki ja sakti. Badvane ke liye Live Support se contact karein.");
+      alert("⚠️ Free Fire UID ek baar save hone ke baad change nahi ki ja sakti. Badvane ke liye Live Support par message karein.");
       return;
     }
 
@@ -507,7 +506,6 @@ export default function Home() {
     );
   }
 
-  // 🔒 First-time Free Fire UID setup screen (If not set)
   if (userData && !userData.freeFireUid) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
@@ -571,11 +569,22 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200 flex justify-between items-center">
+      {/* 🔥 Rules & UID Lock Notice with Live Support Prompt */}
+      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
-        <span className="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800">
-          🔒 UID Locked: {userData?.freeFireUid}
-        </span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800">
+            🔒 UID Locked: {userData?.freeFireUid}
+          </span>
+          <a 
+            href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-yellow-400 underline hover:text-yellow-300 font-semibold whitespace-nowrap"
+          >
+            UID update karwani hai? Live Support par msg karein 💬
+          </a>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
@@ -965,7 +974,7 @@ export default function Home() {
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
                 <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
                 <div className="space-y-3 max-h-60 overflow-y-auto">
-                  {tournaments.length === 0 ? (
+                  tournaments.length === 0 ? (
                     <p className="text-xs text-slate-500">Koi match nahi hai.</p>
                   ) : (
                     tournaments.map(m => (
@@ -985,7 +994,7 @@ export default function Home() {
                         )}
                       </div>
                     ))
-                  )}
+                  )
                 </div>
               </div>
 
