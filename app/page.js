@@ -71,8 +71,10 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  useEffect(() => {
+useEffect(() => {
     let unsubscribeUser = () => {};
+    let unsubscribeTournaments = () => {};
+    let unsubscribeRequests = () => {};
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -106,27 +108,29 @@ export default function Home() {
           }
         });
 
+        // 🔥 Yahan par check hoga ki current user admin hai ya nahi
+        if (currentUser.email === ADMIN_EMAIL) {
+          unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
+            const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setWalletRequests(list.filter(r => r.status === "Pending"));
+          });
+        } else {
+          setWalletRequests([]);
+        }
+
       } else {
         setUser(null);
         setUserData(null);
+        setWalletRequests([]);
       }
       setLoading(false);
     });
 
-    // Real-time listener for Tournaments (Auto-refresh matches & players list)
-    const unsubscribeTournaments = onSnapshot(collection(db, "tournaments"), (snapshot) => {
+    // Real-time listener for Tournaments
+    unsubscribeTournaments = onSnapshot(collection(db, "tournaments"), (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTournaments(list);
     });
-
-    // Real-time listener for Admin Wallet Requests
-    let unsubscribeRequests = () => {};
-    if (auth.currentUser?.email === ADMIN_EMAIL) {
-      unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
-        const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setWalletRequests(list.filter(r => r.status === "Pending"));
-      });
-    }
 
     return () => {
       unsubscribeAuth();
