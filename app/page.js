@@ -76,7 +76,6 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // 🔥 Helper function to sort requests: Pending first, then by newest date/time
   const sortRequestsList = (list) => {
     return list.sort((a, b) => {
       if (a.status === "Pending" && b.status !== "Pending") return -1;
@@ -315,6 +314,11 @@ export default function Home() {
   };
 
   const handleJoinMatch = async (match) => {
+    if (!userData.freeFireUid || !userData.freeFireName) {
+      alert("Pehle apni Free Fire UID aur IGN profile mein update karein!");
+      return;
+    }
+
     if (match.players?.some(p => p.uid === user.uid)) {
       return alert("Aap pehle hi is match mein join ho chuke hain!");
     }
@@ -590,9 +594,16 @@ export default function Home() {
                     <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
                     <p className="text-xs text-slate-400 mt-1">Players Joined: {match.players?.length || 0} / 48</p>
                     
-                    {isJoined && (
-                      <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-1.5 rounded text-xs text-green-400 font-mono">
-                        Room ID: {match.roomId || "Pending"} | Pass: {match.roomPass || "Pending"}
+                    {/* 🔥 SECURE ROOM ID: Sirf joined players ko hi Room ID dikhegi */}
+                    {isJoined ? (
+                      <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-2 rounded text-xs text-green-400 font-mono space-y-1">
+                        <p className="font-bold text-yellow-400">🎯 Your Room Credentials:</p>
+                        <p>Room ID: <span className="text-white font-bold">{match.roomId || "Pending (10 mins before match)"}</span></p>
+                        <p>Password: <span className="text-white font-bold">{match.roomPass || "Pending"}</span></p>
+                      </div>
+                    ) : (
+                      <div className="mt-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded text-xs text-slate-400">
+                        🔒 Join match to unlock Room ID & Password.
                       </div>
                     )}
                   </div>
@@ -757,7 +768,6 @@ export default function Home() {
               </div>
             </div>
 
-            {/* 🔥 TRANSACTION HISTORY (Newest First using .slice().reverse()) */}
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
               <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
               <div className="space-y-2 max-h-72 overflow-y-auto">
@@ -875,7 +885,7 @@ export default function Home() {
                   >
                     <option value="">-- Choose Match --</option>
                     {tournaments.map(m => (
-                      <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
+                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}</option>
                     ))}
                   </select>
                   <input 
@@ -898,6 +908,34 @@ export default function Home() {
                     Publish Room Credentials
                   </button>
                 </form>
+              </div>
+
+              {/* 🔥 ADMIN JOINED PLAYERS LIST (To verify & cross-check before room start) */}
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+                <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {tournaments.length === 0 ? (
+                    <p className="text-xs text-slate-500">Koi match nahi hai.</p>
+                  ) : (
+                    tournaments.map(m => (
+                      <div key={m.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
+                        <p className="text-xs font-bold text-yellow-300 mb-2">{m.title} ({m.players?.length || 0} Players)</p>
+                        {(!m.players || m.players.length === 0) ? (
+                          <p className="text-[10px] text-slate-500">Abhi koi player join nahi hua.</p>
+                        ) : (
+                          <div className="space-y-1">
+                            {m.players.map((p, i) => (
+                              <div key={i} className="flex justify-between text-[11px] text-slate-300 font-mono bg-slate-900 px-2 py-1 rounded">
+                                <span>{i+1}. {p.ffName}</span>
+                                <span className="text-green-400">UID: {p.ffUid}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
