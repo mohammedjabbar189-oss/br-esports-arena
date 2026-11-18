@@ -79,16 +79,19 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // ⏰ Helper function for 12-hour format with AM/PM
-  const formatDateTime = (createdAt) => {
-    if (!createdAt) return "";
+  // ⏰ Universal Helper function for 12-hour format with AM/PM (Handles strings, timestamps, objects)
+  const formatDateTime = (input) => {
+    if (!input) return "";
     let dateObj;
-    if (createdAt.seconds) {
-      dateObj = new Date(createdAt.seconds * 1000);
+    if (input.seconds) {
+      dateObj = new Date(input.seconds * 1000);
     } else {
-      dateObj = new Date(createdAt);
+      dateObj = new Date(input);
     }
-    if (isNaN(dateObj.getTime())) return "";
+    if (isNaN(dateObj.getTime())) {
+      // Agar string pehle se formatted hai ya custom format hai toh waisa hi dikha do ya parse karo
+      return input; 
+    }
     return dateObj.toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       day: '2-digit',
@@ -97,7 +100,7 @@ export default function Home() {
       hour: 'numeric',
       minute: '2-digit',
       second: '2-digit',
-      hour12: true // Ye 12-hour AM/PM format karega
+      hour12: true
     });
   };
 
@@ -815,17 +818,21 @@ export default function Home() {
                 {(!userData?.transactions || userData.transactions.length === 0) ? (
                   <p className="text-xs text-slate-500 text-center py-6">Koi transaction history nahi hai.</p>
                 ) : (
-                  [...userData.transactions].reverse().map((tx, idx) => (
-                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
-                      <div>
-                        <p className="font-semibold text-slate-300">{tx.text}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{tx.date}</p>
+                  [...userData.transactions].reverse().map((tx, idx) => {
+                    // 🔥 Smart Fix: Purane aur naye saare dates ko 12-hr AM/PM format mein render karega
+                    const txDate = formatDateTime(tx.date);
+                    return (
+                      <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-semibold text-slate-300">{tx.text}</p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">{txDate}</p>
+                        </div>
+                        <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
+                          {tx.amount}
+                        </span>
                       </div>
-                      <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
-                        {tx.amount}
-                      </span>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
