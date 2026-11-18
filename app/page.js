@@ -126,7 +126,6 @@ export default function Home() {
         const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
         unsubscribeMyRequests = onSnapshot(q, (snapshot) => {
           const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          // Latest request upar dikhane ke liye sort kar sakte hain ya aise hi rakh sakte hain
           setMyRequests(list);
         });
 
@@ -571,7 +570,7 @@ export default function Home() {
       )}
 
       {activeTab === "wallet" && (
-        <div className="max-w-md mx-auto space-y-6">
+        <div className="max-w-4xl mx-auto space-y-6">
           <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
             <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
               <span className="text-sm text-slate-400">Available Balance</span>
@@ -595,7 +594,6 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                {/* 📱 PhonePe QR Code Display */}
                 <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center mb-4 flex flex-col items-center">
                   <p className="text-xs text-slate-400 mb-2">Scan & Pay via PhonePe / Any UPI App:</p>
                   <img 
@@ -653,199 +651,207 @@ export default function Home() {
             )}
           </div>
 
-          {/* ⏳ User ki apni Requests ka Live Status Box */}
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Payment Requests Status</h3>
-            <div className="space-y-2 max-h-45 overflow-y-auto">
-              {(!myRequests || myRequests.length === 0) ? (
-                <p className="text-xs text-slate-500 text-center py-4">Aapne koi payment request nahi bheji hai.</p>
-              ) : (
-                myRequests.map((req, idx) => (
-                  <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
-                    <div>
-                      <p className="font-semibold text-slate-300">
-                        {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
-                      </p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
-                      </p>
+          {/* 🔥 SIDE-BY-SIDE GRID FOR USER: My Requests & Transaction History */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+              <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Requests Status</h3>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {(!myRequests || myRequests.length === 0) ? (
+                  <p className="text-xs text-slate-500 text-center py-6">Koi request nahi hai.</p>
+                ) : (
+                  myRequests.map((req, idx) => (
+                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-semibold text-slate-300">
+                          {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
+                        </p>
+                      </div>
+                      <div>
+                        {req.status === 'Pending' && (
+                          <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
+                            ⏳ Pending
+                          </span>
+                        )}
+                        {req.status === 'Approved' && (
+                          <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                            ✅ Approved
+                          </span>
+                        )}
+                        {req.status === 'Rejected' && (
+                          <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                            ❌ Rejected
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      {req.status === 'Pending' && (
-                        <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
-                          ⏳ Pending
-                        </span>
-                      )}
-                      {req.status === 'Approved' && (
-                        <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
-                          ✅ Approved
-                        </span>
-                      )}
-                      {req.status === 'Rejected' && (
-                        <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
-                          ❌ Rejected
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {(!userData?.transactions || userData.transactions.length === 0) ? (
-                <p className="text-xs text-slate-500 text-center py-4">Koi transaction history nahi hai.</p>
-              ) : (
-                userData.transactions.map((tx, idx) => (
-                  <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
-                    <div>
-                      <p className="font-semibold text-slate-300">{tx.text}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{tx.date}</p>
+            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+              <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {(!userData?.transactions || userData.transactions.length === 0) ? (
+                  <p className="text-xs text-slate-500 text-center py-6">Koi transaction history nahi hai.</p>
+                ) : (
+                  userData.transactions.map((tx, idx) => (
+                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-semibold text-slate-300">{tx.text}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{tx.date}</p>
+                      </div>
+                      <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
+                        {tx.amount}
+                      </span>
                     </div>
-                    <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
-                      {tx.amount}
-                    </span>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {activeTab === "admin" && isAdmin && (
-        <div className="max-w-md mx-auto space-y-6">
-          <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl">
-            <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
-            {walletRequests.length === 0 ? (
-              <p className="text-xs text-slate-500">Koi pending request nahi hai.</p>
-            ) : (
-              <div className="space-y-3">
-                {walletRequests.map(req => (
-                  <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
-                    <div className="flex justify-between">
-                      <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
-                      <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
-                        {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
-                      </span>
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 🔥 LEFT SIDE: Pending Payment Requests */}
+            <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl h-fit">
+              <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
+              {walletRequests.length === 0 ? (
+                <p className="text-xs text-slate-500 py-4">Koi pending request nahi hai.</p>
+              ) : (
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {walletRequests.map(req => (
+                    <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
+                      <div className="flex justify-between">
+                        <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
+                        <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
+                          {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
+                        </span>
+                      </div>
+                      {req.type === 'ADD' ? (
+                        <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
+                      ) : (
+                        <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
+                      )}
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                          Approve
+                        </button>
+                        <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                          Reject
+                        </button>
+                      </div>
                     </div>
-                    {req.type === 'ADD' ? (
-                      <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
-                    ) : (
-                      <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
-                    )}
-                    <div className="flex gap-2 pt-1">
-                      <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                        Approve
-                      </button>
-                      <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 🔥 RIGHT SIDE: Create Match, Room ID Update, Cancel Match */}
+            <div className="space-y-6">
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+                <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
+                <form onSubmit={handleCreateMatch} className="space-y-3">
+                  <input 
+                    type="text" 
+                    placeholder="Match Title (e.g. Solo Bermuda)" 
+                    value={matchTitle} 
+                    onChange={(e) => setMatchTitle(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Match Timing (e.g. Today, 8:30 PM)" 
+                    value={matchTime} 
+                    onChange={(e) => setMatchTime(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <input 
+                    type="number" 
+                    placeholder="Entry Fee (0 for Free)" 
+                    value={entryFee} 
+                    onChange={(e) => setEntryFee(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Prize Pool (e.g. ₹300)" 
+                    value={prizePool} 
+                    onChange={(e) => setPrizePool(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
+                    Publish Match
+                  </button>
+                </form>
               </div>
-            )}
-          </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
-            <form onSubmit={handleCreateMatch} className="space-y-3">
-              <input 
-                type="text" 
-                placeholder="Match Title (e.g. Solo Bermuda)" 
-                value={matchTitle} 
-                onChange={(e) => setMatchTitle(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <input 
-                type="text" 
-                placeholder="Match Timing (e.g. Today, 8:30 PM)" 
-                value={matchTime} 
-                onChange={(e) => setMatchTime(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <input 
-                type="number" 
-                placeholder="Entry Fee (0 for Free)" 
-                value={entryFee} 
-                onChange={(e) => setEntryFee(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <input 
-                type="text" 
-                placeholder="Prize Pool (e.g. ₹300)" 
-                value={prizePool} 
-                onChange={(e) => setPrizePool(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
-                Publish Match
-              </button>
-            </form>
-          </div>
+              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
+                <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
+                <form onSubmit={handleUpdateRoom} className="space-y-3">
+                  <select 
+                    value={selectedMatchId} 
+                    onChange={(e) => setSelectedMatchId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  >
+                    <option value="">-- Choose Match --</option>
+                    {tournaments.map(m => (
+                      <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
+                    ))}
+                  </select>
+                  <input 
+                    type="text" 
+                    placeholder="Room ID" 
+                    value={roomIdInput} 
+                    onChange={(e) => setRoomIdInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <input 
+                    type="text" 
+                    placeholder="Room Password" 
+                    value={roomPassInput} 
+                    onChange={(e) => setRoomPassInput(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                    Publish Room Credentials
+                  </button>
+                </form>
+              </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
-            <form onSubmit={handleUpdateRoom} className="space-y-3">
-              <select 
-                value={selectedMatchId} 
-                onChange={(e) => setSelectedMatchId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required
-              >
-                <option value="">-- Choose Match --</option>
-                {tournaments.map(m => (
-                  <option key={m.id} value={m.id}>{m.title} ({m.timing})</option>
-                ))}
-              </select>
-              <input 
-                type="text" 
-                placeholder="Room ID" 
-                value={roomIdInput} 
-                onChange={(e) => setRoomIdInput(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <input 
-                type="text" 
-                placeholder="Room Password" 
-                value={roomPassInput} 
-                onChange={(e) => setRoomPassInput(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required 
-              />
-              <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Publish Room Credentials
-              </button>
-            </form>
-          </div>
-
-          <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
-            <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
-            <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
-              <select 
-                value={cancelMatchId} 
-                onChange={(e) => setCancelMatchId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                required
-              >
-                <option value="">-- Choose Match to Cancel --</option>
-                {tournaments.map(m => (
-                  <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0})</option>
-                ))}
-              </select>
-              <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                Cancel Match & Refund All
-              </button>
-            </form>
+              <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
+                <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
+                <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
+                  <select 
+                    value={cancelMatchId} 
+                    onChange={(e) => setCancelMatchId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  >
+                    <option value="">-- Choose Match to Cancel --</option>
+                    {tournaments.map(m => (
+                      <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0})</option>
+                    ))}
+                  </select>
+                  <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
+                    Cancel Match & Refund All
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       )}
