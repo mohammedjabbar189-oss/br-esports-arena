@@ -74,6 +74,20 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
+  // 🔥 Helper function to sort requests: Pending first, then by newest date/time
+  const sortRequestsList = (list) => {
+    return list.sort((a, b) => {
+      // 1. Pehle 'Pending' status wale sabse upar honge
+      if (a.status === "Pending" && b.status !== "Pending") return -1;
+      if (b.status === "Pending" && a.status !== "Pending") return 1;
+
+      // 2. Uske baad naye date/time wale upar honge (Descending order)
+      const timeA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
+      const timeB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
+  };
+
   useEffect(() => {
     let unsubscribeUser = () => {};
     let unsubscribeTournaments = () => {};
@@ -112,21 +126,23 @@ export default function Home() {
           }
         });
 
-        // 🔥 Admin ke liye pending requests listener
+        // 🔥 Admin ke liye pending & sorted requests listener
         if (currentUser.email === ADMIN_EMAIL) {
           unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setWalletRequests(list.filter(r => r.status === "Pending"));
+            // Admin panel mein sirf Pending dikhana hai aur unhe sort karna hai
+            const pendingList = list.filter(r => r.status === "Pending");
+            setWalletRequests(sortRequestsList(pendingList));
           });
         } else {
           setWalletRequests([]);
         }
 
-        // 🔥 User ke liye uski apni requests ka listener
+        // 🔥 User ke liye uski apni requests ka sorted listener
         const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
         unsubscribeMyRequests = onSnapshot(q, (snapshot) => {
           const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-          setMyRequests(list);
+          setMyRequests(sortRequestsList(list));
         });
 
       } else {
@@ -351,7 +367,7 @@ export default function Home() {
       amount: Number(addAmount),
       utr: utrNumber,
       status: "Pending",
-      createdAt: new Date()
+      createdAt: new Date().toISOString() // Exact ISO date/time for perfect sorting
     });
     alert("Deposit Request bhej di gayi hai!");
     setAddAmount("");
@@ -376,7 +392,7 @@ export default function Home() {
       amount: amt,
       upiId: withdrawUpi,
       status: "Pending",
-      createdAt: new Date()
+      createdAt: new Date().toISOString() // Exact ISO date/time for perfect sorting
     });
 
     alert("Withdrawal Request bhej di gayi hai!");
@@ -651,7 +667,7 @@ export default function Home() {
             )}
           </div>
 
-          {/* 🔥 SIDE-BY-SIDE GRID FOR USER: My Requests & Transaction History */}
+          {/* 🔥 SIDE-BY-SIDE GRID FOR USER: Sorted My Requests & Transaction History */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
               <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Requests Status</h3>
@@ -659,35 +675,40 @@ export default function Home() {
                 {(!myRequests || myRequests.length === 0) ? (
                   <p className="text-xs text-slate-500 text-center py-6">Koi request nahi hai.</p>
                 ) : (
-                  myRequests.map((req, idx) => (
-                    <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
-                      <div>
-                        <p className="font-semibold text-slate-300">
-                          {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
-                        </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
-                        </p>
+                  myRequests.map((req, idx) => {
+                    // Display readable date & time if available
+                    const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleString() : "";
+                    return (
+                      <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                        <div>
+                          <p className="font-semibold text-slate-300">
+                            {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
+                          </p>
+                          <p className="text-[10px] text-slate-500 mt-0.5">
+                            {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
+                          </p>
+                          {reqDate && <p className="text-[9px] text-slate-500 mt-0.5">{reqDate}</p>}
+                        </div>
+                        <div>
+                          {req.status === 'Pending' && (
+                            <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
+                              ⏳ Pending
+                            </span>
+                          )}
+                          {req.status === 'Approved' && (
+                            <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                              ✅ Approved
+                            </span>
+                          )}
+                          {req.status === 'Rejected' && (
+                            <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                              ❌ Rejected
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        {req.status === 'Pending' && (
-                          <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
-                            ⏳ Pending
-                          </span>
-                        )}
-                        {req.status === 'Approved' && (
-                          <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
-                            ✅ Approved
-                          </span>
-                        )}
-                        {req.status === 'Rejected' && (
-                          <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
-                            ❌ Rejected
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -719,36 +740,40 @@ export default function Home() {
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 🔥 LEFT SIDE: Pending Payment Requests */}
+            {/* 🔥 LEFT SIDE: Sorted Pending Payment Requests */}
             <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl h-fit">
               <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
               {walletRequests.length === 0 ? (
                 <p className="text-xs text-slate-500 py-4">Koi pending request nahi hai.</p>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {walletRequests.map(req => (
-                    <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
-                      <div className="flex justify-between">
-                        <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
-                        <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
-                          {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
-                        </span>
+                  {walletRequests.map(req => {
+                    const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleString() : "";
+                    return (
+                      <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
+                        <div className="flex justify-between">
+                          <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
+                          <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
+                            {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
+                          </span>
+                        </div>
+                        {req.type === 'ADD' ? (
+                          <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
+                        ) : (
+                          <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
+                        )}
+                        {reqDate && <p className="text-[10px] text-slate-500">{reqDate}</p>}
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                            Approve
+                          </button>
+                          <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                            Reject
+                          </button>
+                        </div>
                       </div>
-                      {req.type === 'ADD' ? (
-                        <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
-                      ) : (
-                        <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
-                      )}
-                      <div className="flex gap-2 pt-1">
-                        <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                          Approve
-                        </button>
-                        <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
