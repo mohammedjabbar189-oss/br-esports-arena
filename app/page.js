@@ -79,7 +79,7 @@ export default function Home() {
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
-  // ⏰ Universal Helper function for 12-hour format with AM/PM (Handles strings, timestamps, objects)
+  // ⏰ Universal Helper function for 12-hour format with AM/PM
   const formatDateTime = (input) => {
     if (!input) return "";
     let dateObj;
@@ -89,7 +89,6 @@ export default function Home() {
       dateObj = new Date(input);
     }
     if (isNaN(dateObj.getTime())) {
-      // Agar string pehle se formatted hai ya custom format hai toh waisa hi dikha do ya parse karo
       return input; 
     }
     return dateObj.toLocaleString('en-IN', {
@@ -205,6 +204,12 @@ export default function Home() {
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
+    // 🔒 Security Check: Agar UID pehle se saved hai, toh user dobara khud se change nahi kar sakta!
+    if (userData?.freeFireUid) {
+      alert("⚠️ Free Fire UID ek baar save hone ke baad change nahi ki ja sakti. Badvane ke liye Live Support se contact karein.");
+      return;
+    }
+
     const cleanUid = ffUid.trim();
     const cleanName = ffName.trim();
 
@@ -222,7 +227,7 @@ export default function Home() {
     const userRef = doc(db, "users", user.uid);
     await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
     setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
-    alert("✅ Free Fire ID Successfully Updated!");
+    alert("✅ Free Fire ID Successfully Locked & Saved!");
   };
 
   const handleCreateMatch = async (e) => {
@@ -502,19 +507,22 @@ export default function Home() {
     );
   }
 
+  // 🔒 First-time Free Fire UID setup screen (If not set)
   if (userData && !userData.freeFireUid) {
     return (
       <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
           <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-5">Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
+          <p className="text-sm text-slate-400 mb-2">Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
+          <p className="text-xs text-red-400 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
+          
           <form onSubmit={saveFreeFireDetails} className="space-y-4">
             <input 
               type="text" 
               placeholder="Free Fire UID (e.g. 24589631)" 
               value={ffUid} 
               onChange={(e) => setFfUid(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
+              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white font-mono"
               required
             />
             <input 
@@ -525,8 +533,8 @@ export default function Home() {
               className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
               required
             />
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer">
-              Save & Enter Arena 🚀
+            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition">
+              Save & Lock UID 🔒🚀
             </button>
           </form>
         </div>
@@ -565,12 +573,9 @@ export default function Home() {
 
       <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200 flex justify-between items-center">
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
-        <button 
-          onClick={() => setUserData({ ...userData, freeFireUid: "" })}
-          className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-3 py-1 rounded text-xs cursor-pointer whitespace-nowrap ml-2"
-        >
-          ✏️ Edit Profile / UID
-        </button>
+        <span className="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800">
+          🔒 UID Locked: {userData?.freeFireUid}
+        </span>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
@@ -819,7 +824,6 @@ export default function Home() {
                   <p className="text-xs text-slate-500 text-center py-6">Koi transaction history nahi hai.</p>
                 ) : (
                   [...userData.transactions].reverse().map((tx, idx) => {
-                    // 🔥 Smart Fix: Purane aur naye saare dates ko 12-hr AM/PM format mein render karega
                     const txDate = formatDateTime(tx.date);
                     return (
                       <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
