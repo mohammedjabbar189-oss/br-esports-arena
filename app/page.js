@@ -12,6 +12,7 @@ import {
   getFirestore, 
   doc, 
   getDoc, 
+  getDocs,
   setDoc, 
   updateDoc,
   deleteDoc,
@@ -71,17 +72,16 @@ export default function Home() {
   const [utrNumber, setUtrNumber] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [withdrawUpi, setWithdrawUpi] = useState("");
+  const [submittingRequest, setSubmittingRequest] = useState(false);
 
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   // 🔥 Helper function to sort requests: Pending first, then by newest date/time
   const sortRequestsList = (list) => {
     return list.sort((a, b) => {
-      // 1. Pehle 'Pending' status wale sabse upar honge
       if (a.status === "Pending" && b.status !== "Pending") return -1;
       if (b.status === "Pending" && a.status !== "Pending") return 1;
 
-      // 2. Uske baad naye date/time wale upar honge (Descending order)
       const timeA = a.createdAt?.seconds ? a.createdAt.seconds * 1000 : new Date(a.createdAt || 0).getTime();
       const timeB = b.createdAt?.seconds ? b.createdAt.seconds * 1000 : new Date(b.createdAt || 0).getTime();
       return timeB - timeA;
@@ -99,7 +99,6 @@ export default function Home() {
         setUser(currentUser);
         const userRef = doc(db, "users", currentUser.uid);
         
-        // Real-time listener for user wallet and profile updates
         unsubscribeUser = onSnapshot(userRef, (userSnap) => {
           if (userSnap.exists()) {
             const data = userSnap.data();
@@ -126,11 +125,9 @@ export default function Home() {
           }
         });
 
-        // 🔥 Admin ke liye pending & sorted requests listener
         if (currentUser.email === ADMIN_EMAIL) {
           unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            // Admin panel mein sirf Pending dikhana hai aur unhe sort karna hai
             const pendingList = list.filter(r => r.status === "Pending");
             setWalletRequests(sortRequestsList(pendingList));
           });
@@ -138,7 +135,6 @@ export default function Home() {
           setWalletRequests([]);
         }
 
-        // 🔥 User ke liye uski apni requests ka sorted listener
         const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
         unsubscribeMyRequests = onSnapshot(q, (snapshot) => {
           const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -154,7 +150,6 @@ export default function Home() {
       setLoading(false);
     });
 
-    // Real-time listener for Tournaments
     unsubscribeTournaments = onSnapshot(collection(db, "tournaments"), (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setTournaments(list);
@@ -358,46 +353,92 @@ export default function Home() {
 
   const handleAddMoneyRequest = async (e) => {
     e.preventDefault();
-    if (!addAmount || !utrNumber) return alert("Amount aur UTR number dono daalein!");
-    await addDoc(collection(db, "wallet_requests"), {
-      type: "ADD",
-      userId: user.uid,
-      userName: userData.freeFireName,
-      email: user.email,
-      amount: Number(addAmount),
-      utr: utrNumber,
-      status: "Pending",
-      createdAt: new Date().toISOString() // Exact ISO date/time for perfect sorting
-    });
-    alert("Deposit Request bhej di gayi hai!");
-    setAddAmount("");
-    setUtrNumber("");
+    if (submittingRequest) return;
+
+    const cleanUtr = utrNumber.trim();
+    const amt = Number(addAmount);
+
+    if (!amt || amt <= 0) {
+      return alert("⚠️ Sahi amount daalein!");
+    }
+
+    // 🔥 Rule 1: Exact 12-Digit Numeric Check
+    const utrRegex = /^\d{12}$/;
+    if (!utrRegex.test(cleanUtr)) {
+      return alert("⚠️ Error: UTR number exact 12 digits ka valid number hona chahiye! (No letters or spaces)");
+    }
+
+    setSubmittingRequest(true);
+    try {
+      // 🔥 Rule 2: Check if this UTR already exists in database (Pending or Approved)
+      const utrQuery = query(
+        collection(db, "wallet_requests"), 
+        where("utr", "==", cleanUtr)
+      );
+      const querySnapshot = await getDocs(utrQuery);
+
+      // Agar koi aisi request mili jo Rejected nahi hai (yaani Pending ya Approved hai)
+      const isDuplicate = querySnapshot.docs.some(doc => doc.data().status !== "Rejected");
+
+      if (isDuplicate) {
+        setSubmittingRequest(false);
+        return alert("⚠️ Error: Yeh UTR number pehle hi use ho chuka hai! Fake ya duplicate entry allowed nahi hai.");
+      }
+
+      await addDoc(collection(db, "wallet_requests"), {
+        type: "ADD",
+        userId: user.uid,
+        userName: userData.freeFireName,
+        email: user.email,
+        amount: amt,
+        utr: cleanUtr,
+        status: "Pending",
+        createdAt: new Date().toISOString()
+      });
+
+      alert("✅ Deposit Request bhej di gayi hai! Admin verify karke approve kar dega.");
+      setAddAmount("");
+      setUtrNumber("");
+    } catch (error) {
+      alert("Error submitting request: " + error.message);
+    } finally {
+      setSubmittingRequest(false);
+    }
   };
 
   const handleWithdrawRequest = async (e) => {
     e.preventDefault();
+    if (submittingRequest) return;
+
     const amt = Number(withdrawAmount);
     const currentWallet = Number(userData.wallet) || 0;
     if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
     if (amt > currentWallet) return alert("Aapke wallet mein itna balance nahi hai!");
     if (!withdrawUpi) return alert("Apna UPI ID daalein!");
 
-    const newBalance = currentWallet - amt;
-    await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
-    await addDoc(collection(db, "wallet_requests"), {
-      type: "WITHDRAW",
-      userId: user.uid,
-      userName: userData.freeFireName,
-      email: user.email,
-      amount: amt,
-      upiId: withdrawUpi,
-      status: "Pending",
-      createdAt: new Date().toISOString() // Exact ISO date/time for perfect sorting
-    });
+    setSubmittingRequest(true);
+    try {
+      const newBalance = currentWallet - amt;
+      await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
+      await addDoc(collection(db, "wallet_requests"), {
+        type: "WITHDRAW",
+        userId: user.uid,
+        userName: userData.freeFireName,
+        email: user.email,
+        amount: amt,
+        upiId: withdrawUpi.trim(),
+        status: "Pending",
+        createdAt: new Date().toISOString()
+      });
 
-    alert("Withdrawal Request bhej di gayi hai!");
-    setWithdrawAmount("");
-    setWithdrawUpi("");
+      alert("✅ Withdrawal Request bhej di gayi hai!");
+      setWithdrawAmount("");
+      setWithdrawUpi("");
+    } catch (error) {
+      alert("Error: " + error.message);
+    } finally {
+      setSubmittingRequest(false);
+    }
   };
 
   if (loading) {
@@ -631,14 +672,19 @@ export default function Home() {
                   />
                   <input 
                     type="text" 
-                    placeholder="12-Digit UTR Number" 
+                    maxLength={12}
+                    placeholder="Exact 12-Digit UTR Number" 
                     value={utrNumber} 
-                    onChange={(e) => setUtrNumber(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))} // Sirf digits allow karega
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm font-mono"
                     required
                   />
-                  <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                    Submit Deposit Request
+                  <button 
+                    type="submit" 
+                    disabled={submittingRequest}
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                  >
+                    {submittingRequest ? "Verifying & Submitting..." : "Submit Deposit Request"}
                   </button>
                 </form>
               </div>
@@ -660,14 +706,17 @@ export default function Home() {
                   className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
                   required
                 />
-                <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded cursor-pointer">
-                  Request Withdrawal
+                <button 
+                  type="submit" 
+                  disabled={submittingRequest}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                >
+                  {submittingRequest ? "Processing..." : "Request Withdrawal"}
                 </button>
               </form>
             )}
           </div>
 
-          {/* 🔥 SIDE-BY-SIDE GRID FOR USER: Sorted My Requests & Transaction History */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
               <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Requests Status</h3>
@@ -676,7 +725,6 @@ export default function Home() {
                   <p className="text-xs text-slate-500 text-center py-6">Koi request nahi hai.</p>
                 ) : (
                   myRequests.map((req, idx) => {
-                    // Display readable date & time if available
                     const reqDate = req.createdAt ? new Date(req.createdAt).toLocaleString() : "";
                     return (
                       <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
@@ -740,7 +788,6 @@ export default function Home() {
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* 🔥 LEFT SIDE: Sorted Pending Payment Requests */}
             <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl h-fit">
               <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
               {walletRequests.length === 0 ? (
@@ -778,7 +825,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* 🔥 RIGHT SIDE: Create Match, Room ID Update, Cancel Match */}
             <div className="space-y-6">
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
                 <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
