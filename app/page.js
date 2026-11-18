@@ -542,12 +542,23 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
+      {/* 🔥 Clean Header with ID & Live Support Link Right Next to It */}
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
           <div>
             <h1 className="text-xl font-bold text-yellow-400">BR Esports Arena</h1>
-            <p className="text-xs text-slate-400">ID: {userData?.freeFireName} ({userData?.freeFireUid})</p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-slate-400">ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
+              <a 
+                href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-yellow-400 underline hover:text-yellow-300 font-medium"
+              >
+                UID change karwani hai? Support 💬
+              </a>
+            </div>
           </div>
         </div>
 
@@ -569,22 +580,9 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 🔥 Rules & UID Lock Notice with Live Support Prompt */}
-      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+      {/* 🔥 Clean Rules Section (Removed UID Notice) */}
+      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-slate-300 bg-slate-900 px-3 py-1 rounded border border-slate-800">
-            🔒 UID Locked: {userData?.freeFireUid}
-          </span>
-          <a 
-            href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-yellow-400 underline hover:text-yellow-300 font-semibold whitespace-nowrap"
-          >
-            UID update karwani hai? Live Support par msg karein 💬
-          </a>
-        </div>
       </div>
 
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
