@@ -125,7 +125,7 @@ export default function Home() {
         setUser(currentUser);
         const userRef = doc(db, "users", currentUser.uid);
         
-        unsubscribeUser = onSnapshot(userRef, (userSnap) => {
+        unsubscribeUser = onSnapshot(userRef, async (userSnap) => {
           if (userSnap.exists()) {
             const data = userSnap.data();
             if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
@@ -137,6 +137,7 @@ export default function Home() {
               setFfName(data.freeFireName || "");
             }
           } else {
+            // 🔥 Yahan setDoc use kiya hai taaki Document ID hamesha currentUser.uid hi bane (Random ID nahi)
             const initialData = {
               name: currentUser.displayName,
               email: currentUser.email,
@@ -146,7 +147,7 @@ export default function Home() {
               transactions: [],
               createdAt: new Date()
             };
-            setDoc(userRef, initialData);
+            await setDoc(userRef, initialData);
             setUserData(initialData);
           }
         });
@@ -542,7 +543,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
-      {/* 🔥 Clean Header with ID & Live Support Link Right Next to It */}
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
@@ -580,7 +580,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 🔥 Clean Rules Section (Removed UID Notice) */}
       <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
       </div>
