@@ -137,7 +137,7 @@ export default function Home() {
               setFfName(data.freeFireName || "");
             }
           } else {
-            // 🔥 Yahan setDoc use kiya hai taaki Document ID hamesha currentUser.uid hi bane (Random ID nahi)
+            // 🔥 Jaise hi login ho, document ID mein exact currentUser.uid save ho jayegi (Random ID nahi)
             const initialData = {
               name: currentUser.displayName,
               email: currentUser.email,
@@ -347,8 +347,10 @@ export default function Home() {
   };
 
   const handleJoinMatch = async (match) => {
-    if (!userData.freeFireUid || !userData.freeFireName) {
-      alert("Pehle apni Free Fire UID aur IGN profile mein update karein!");
+    // 🔥 Agar user ne UID set nahi ki hai, toh use profile / wallet par bhej do ya alert do
+    if (!userData?.freeFireUid || !userData?.freeFireName) {
+      alert("⚠️ Pehle apni Free Fire UID aur IGN set karein! Wallet & History tab mein jaakar ya upar support se update karwayein.");
+      setActiveTab("wallet");
       return;
     }
 
@@ -392,6 +394,10 @@ export default function Home() {
     e.preventDefault();
     if (submittingRequest) return;
 
+    if (!userData?.freeFireUid) {
+      return alert("⚠️ Pehle apni Free Fire UID set karein!");
+    }
+
     const cleanUtr = utrNumber.trim();
     const amt = Number(addAmount);
 
@@ -421,7 +427,7 @@ export default function Home() {
       await addDoc(collection(db, "wallet_requests"), {
         type: "ADD",
         userId: user.uid,
-        userName: userData.freeFireName,
+        userName: userData.freeFireName || user.displayName,
         email: user.email,
         amount: amt,
         utr: cleanUtr,
@@ -456,7 +462,7 @@ export default function Home() {
       await addDoc(collection(db, "wallet_requests"), {
         type: "WITHDRAW",
         userId: user.uid,
-        userName: userData.freeFireName,
+        userName: userData.freeFireName || user.displayName,
         email: user.email,
         amount: amt,
         upiId: withdrawUpi.trim(),
@@ -507,49 +513,18 @@ export default function Home() {
     );
   }
 
-  if (userData && !userData.freeFireUid) {
-    return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-          <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-2">Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
-          <p className="text-xs text-red-400 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
-          
-          <form onSubmit={saveFreeFireDetails} className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="Free Fire UID (e.g. 24589631)" 
-              value={ffUid} 
-              onChange={(e) => setFfUid(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white font-mono"
-              required
-            />
-            <input 
-              type="text" 
-              placeholder="In-Game Name (IGN)" 
-              value={ffName} 
-              onChange={(e) => setFfName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
-              required
-            />
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition">
-              Save & Lock UID 🔒🚀
-            </button>
-          </form>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-slate-950 text-white p-4">
+      {/* 🔥 Clean Header with ID & Live Support Link Right Next to It */}
       <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
           <div>
             <h1 className="text-xl font-bold text-yellow-400">BR Esports Arena</h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-xs text-slate-400">ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
+              <p className="text-xs text-slate-400">
+                ID: {userData?.freeFireName || user.displayName} ({userData?.freeFireUid || "Not Linked"}) 🔒
+              </p>
               <a 
                 href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
                 target="_blank"
@@ -580,9 +555,40 @@ export default function Home() {
         </div>
       </header>
 
+      {/* 🔥 Rules Section */}
       <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
       </div>
+
+      {/* 🔥 Agar user ne UID set nahi ki hai, toh dashboard par ek pyara sa Setup Box dikhayenge */}
+      {(!userData?.freeFireUid) && (
+        <div className="bg-slate-900 border border-yellow-500/50 p-5 rounded-xl mb-6 shadow-xl">
+          <h3 className="text-md font-bold text-yellow-400 mb-1">⚠️ Apna Free Fire UID aur In-Game Name Link Karein</h3>
+          <p className="text-xs text-slate-300 mb-3">Match join karne ya deposit karne ke liye apni asli Free Fire UID link karna zaroori hai (Ek baar save hone ke baad change nahi hogi).</p>
+          
+          <form onSubmit={saveFreeFireDetails} className="space-y-3 max-w-md">
+            <input 
+              type="text" 
+              placeholder="Free Fire UID (8 to 12 digits)" 
+              value={ffUid} 
+              onChange={(e) => setFfUid(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm font-mono"
+              required
+            />
+            <input 
+              type="text" 
+              placeholder="In-Game Name (IGN)" 
+              value={ffName} 
+              onChange={(e) => setFfName(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+              required
+            />
+            <button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-4 py-2 rounded text-xs cursor-pointer transition">
+              Save & Lock UID 🔒🚀
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
         <button 
