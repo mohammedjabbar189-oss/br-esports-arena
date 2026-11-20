@@ -22,6 +22,7 @@ import {
   query,
   where,
   arrayUnion,
+  arrayRemove,
   increment 
 } from "firebase/firestore";
 
@@ -275,6 +276,7 @@ export default function Home() {
       roomId: "Pending",
       roomPass: "Pending",
       players: [],
+      kickedPlayers: [],
       status: "Active",
       createdAt: new Date()
     });
@@ -316,13 +318,63 @@ export default function Home() {
       (p) => !(p.uid === playerToRemove.uid && p.ffUid === playerToRemove.ffUid)
     );
 
+    const existingKicked = matchObj.kickedPlayers || [];
+    const alreadyKicked = existingKicked.some((k) => k.uid === playerToRemove.uid);
+    const kickedEntry = {
+      uid: playerToRemove.uid,
+      ffUid: playerToRemove.ffUid || "",
+      ffName: playerToRemove.ffName || "Player",
+    };
+
+    const entryFeeAmount = Number(matchObj.entryFee) || 0;
+
     try {
       await updateDoc(doc(db, "tournaments", matchId), {
         players: updatedPlayers,
+        ...(alreadyKicked ? {} : { kickedPlayers: arrayUnion(kickedEntry) }),
       });
-      alert(`✅ ${playerToRemove.ffName} ko match se nikal diya gaya hai!`);
+
+      if (playerToRemove.uid && entryFeeAmount > 0) {
+        const playerRef = doc(db, "users", playerToRemove.uid);
+        const refundTx = {
+          text: `Removed from Match & Refunded: ${matchObj.title}`,
+          amount: `+₹${entryFeeAmount}`,
+          date: formatDateTime(new Date()),
+        };
+        await updateDoc(playerRef, {
+          wallet: increment(entryFeeAmount),
+          transactions: arrayUnion(refundTx),
+        });
+      }
+
+      alert(
+        entryFeeAmount > 0
+          ? `✅ ${playerToRemove.ffName} ko match se nikal diya gaya, dobara join block kar diya gaya, aur ₹${entryFeeAmount} wallet mein refund kar diya gaya!`
+          : `✅ ${playerToRemove.ffName} ko match se nikal diya gaya aur dobara join block kar diya gaya!`
+      );
     } catch (error) {
       alert("Player hatane mein error aaya: " + error.message);
+    }
+  };
+
+  const handleAllowBackPlayer = async (matchId, kickedPlayer) => {
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!matchId || !kickedPlayer) return;
+
+    const matchObj = tournaments.find((m) => m.id === matchId);
+    if (!matchObj) return;
+
+    const updatedKicked = (matchObj.kickedPlayers || []).filter(
+      (k) => k.uid !== kickedPlayer.uid
+    );
+
+    try {
+      await updateDoc(doc(db, "tournaments", matchId), {
+        kickedPlayers: updatedKicked,
+      });
+      alert(`✅ ${kickedPlayer.ffName} ko dobara is match mein join karne ki permission (Allow Back) de di gayi hai!`);
+    } catch (error) {
+      alert("Allow back karne mein error aaya: " + error.message);
     }
   };
 
@@ -457,6 +509,10 @@ export default function Home() {
     if (!userData.freeFireUid || !userData.freeFireName) {
       alert("Pehle apni Free Fire UID aur IGN profile mein update karein!");
       return;
+    }
+
+    if (match.kickedPlayers?.some(k => k.uid === user.uid)) {
+      return alert("⚠️ Aapko is match se remove/block kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.");
     }
 
     if (match.players?.some(p => p.uid === user.uid)) {
@@ -733,6 +789,7 @@ export default function Home() {
           ) : (
             sortedTournaments.map((match) => {
               const isJoined = match.players?.some(p => p.uid === user.uid);
+              const isRemoved = match.kickedPlayers?.some(k => k.uid === user.uid);
               const slotLimit = Number(match.maxPlayers) || 48;
               const joinedCount = match.players?.length || 0;
               const isFull = joinedCount >= slotLimit;
@@ -758,6 +815,10 @@ export default function Home() {
                         <p>Room ID: <span className="text-white font-bold">{match.roomId || "Pending (10 mins before match)"}</span></p>
                         <p>Password: <span className="text-white font-bold">{match.roomPass || "Pending"}</span></p>
                       </div>
+                    ) : isRemoved ? (
+                      <div className="mt-3 bg-red-950/40 border border-red-700/50 px-3 py-1.5 rounded text-xs text-red-300">
+                        ⚠️ Aapko is match se remove kiya gaya hai (entry refund wallet/history mein check karein).
+                      </div>
                     ) : (
                       <div className="mt-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded text-xs text-slate-400">
                         🔒 Join match to unlock Room ID & Password.
@@ -773,6 +834,10 @@ export default function Home() {
                     {isJoined ? (
                       <span className="bg-green-600/20 border border-green-600 text-green-400 font-bold px-4 py-1.5 rounded-lg text-sm">
                         ✅ Joined
+                      </span>
+                    ) : isRemoved ? (
+                      <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                        Removed
                       </span>
                     ) : isFull ? (
                       <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
@@ -1102,13 +1167,15 @@ export default function Home() {
 
               <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
                 <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
-                <div className="space-y-3 max-h-60 overflow-y-auto">
+                <div className="space-y-3 max-h-72 overflow-y-auto">
                   {sortedTournaments.length === 0 ? (
                     <p className="text-xs text-slate-500">Koi match nahi hai.</p>
                   ) : (
                     sortedTournaments.map(m => (
-                      <div key={m.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                        <p className="text-xs font-bold text-yellow-300 mb-2">{m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players)</p>
+                      <div key={m.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                        <p className="text-xs font-bold text-yellow-300">
+                          {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
+                        </p>
                         {(!m.players || m.players.length === 0) ? (
                           <p className="text-[10px] text-slate-500">Abhi koi player join nahi hua.</p>
                         ) : (
@@ -1126,6 +1193,24 @@ export default function Home() {
                                     Remove
                                   </button>
                                 </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {m.kickedPlayers && m.kickedPlayers.length > 0 && (
+                          <div className="pt-2 border-t border-slate-800/80 space-y-1">
+                            <p className="text-[10px] font-bold text-red-400">🚫 Removed / Blocked From Rejoin:</p>
+                            {m.kickedPlayers.map((k, kIdx) => (
+                              <div key={kIdx} className="flex justify-between items-center gap-2 text-[10px] text-slate-400 font-mono bg-red-950/20 border border-red-900/40 px-2 py-1 rounded">
+                                <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAllowBackPlayer(m.id, k)}
+                                  className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-sans font-bold cursor-pointer shrink-0"
+                                >
+                                  Allow Back
+                                </button>
                               </div>
                             ))}
                           </div>
