@@ -56,6 +56,7 @@ export default function Home() {
   const [matchTime, setMatchTime] = useState("");
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
+  const [maxPlayers, setMaxPlayers] = useState("48");
   const [tournaments, setTournaments] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
@@ -264,11 +265,13 @@ export default function Home() {
   const handleCreateMatch = async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
+    const parsedMaxPlayers = Math.max(2, Number(maxPlayers) || 48);
     await addDoc(collection(db, "tournaments"), {
       title: matchTitle,
       timing: matchTime,
       entryFee: Number(entryFee),
       prizePool: prizePool,
+      maxPlayers: parsedMaxPlayers,
       roomId: "Pending",
       roomPass: "Pending",
       players: [],
@@ -280,6 +283,7 @@ export default function Home() {
     setMatchTime("");
     setEntryFee("");
     setPrizePool("");
+    setMaxPlayers("48");
     setActiveTab("tournaments");
   };
 
@@ -437,6 +441,12 @@ export default function Home() {
     if (match.players?.some(p => p.uid === user.uid)) {
       return alert("Aap pehle hi is match mein join ho chuke hain!");
     }
+
+    const slotLimit = Number(match.maxPlayers) || 48;
+    if ((match.players?.length || 0) >= slotLimit) {
+      return alert(`Match Full! Maximum ${slotLimit} players allowed hain.`);
+    }
+
     const currentWallet = Number(userData.wallet) || 0;
     if (currentWallet < match.entryFee) {
       alert("Wallet mein balance kam hai! Pehle Add Money karein.");
@@ -702,6 +712,10 @@ export default function Home() {
           ) : (
             sortedTournaments.map((match) => {
               const isJoined = match.players?.some(p => p.uid === user.uid);
+              const slotLimit = Number(match.maxPlayers) || 48;
+              const joinedCount = match.players?.length || 0;
+              const isFull = joinedCount >= slotLimit;
+
               return (
                 <div key={match.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                   <div>
@@ -715,7 +729,7 @@ export default function Home() {
                     </div>
                     <h3 className="text-lg font-bold mt-2">{match.title}</h3>
                     <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
-                    <p className="text-xs text-slate-400 mt-1">Players Joined: {match.players?.length || 0} / 48</p>
+                    <p className="text-xs text-slate-400 mt-1">Players Joined: {joinedCount} / {slotLimit}</p>
                     
                     {isJoined ? (
                       <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-2 rounded text-xs text-green-400 font-mono space-y-1">
@@ -738,6 +752,10 @@ export default function Home() {
                     {isJoined ? (
                       <span className="bg-green-600/20 border border-green-600 text-green-400 font-bold px-4 py-1.5 rounded-lg text-sm">
                         ✅ Joined
+                      </span>
+                    ) : isFull ? (
+                      <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                        Slot Full
                       </span>
                     ) : (
                       <button 
@@ -1003,6 +1021,15 @@ export default function Home() {
                     required 
                   />
                   <input 
+                    type="number" 
+                    min="2"
+                    placeholder="Max Players (e.g. 10 or 48)" 
+                    value={maxPlayers} 
+                    onChange={(e) => setMaxPlayers(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+                  <input 
                     type="text" 
                     placeholder="Prize Pool (e.g. ₹300)" 
                     value={prizePool} 
@@ -1027,7 +1054,7 @@ export default function Home() {
                   >
                     <option value="">-- Choose Match --</option>
                     {sortedTournaments.map(m => (
-                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}</option>
+                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}/{m.maxPlayers || 48}</option>
                     ))}
                   </select>
                   <input 
@@ -1060,7 +1087,7 @@ export default function Home() {
                   ) : (
                     sortedTournaments.map(m => (
                       <div key={m.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800">
-                        <p className="text-xs font-bold text-yellow-300 mb-2">{m.title} ({m.players?.length || 0} Players)</p>
+                        <p className="text-xs font-bold text-yellow-300 mb-2">{m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players)</p>
                         {(!m.players || m.players.length === 0) ? (
                           <p className="text-[10px] text-slate-500">Abhi koi player join nahi hua.</p>
                         ) : (
@@ -1096,7 +1123,7 @@ export default function Home() {
                   >
                     <option value="">-- Choose Match --</option>
                     {sortedTournaments.map(m => (
-                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}</option>
+                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}/{m.maxPlayers || 48}</option>
                     ))}
                   </select>
 
@@ -1180,7 +1207,7 @@ export default function Home() {
                   >
                     <option value="">-- Choose Match to Cancel --</option>
                     {sortedTournaments.map(m => (
-                      <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0})</option>
+                      <option key={m.id} value={m.id}>{m.title} (Players: {m.players?.length || 0}/{m.maxPlayers || 48})</option>
                     ))}
                   </select>
                   <button type="submit" className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded cursor-pointer">
