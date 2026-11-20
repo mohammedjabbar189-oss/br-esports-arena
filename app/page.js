@@ -305,6 +305,27 @@ export default function Home() {
     setSelectedMatchId("");
   };
 
+  const handleRemovePlayerFromMatch = async (matchId, playerToRemove) => {
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!matchId || !playerToRemove) return;
+
+    const matchObj = tournaments.find((m) => m.id === matchId);
+    if (!matchObj) return;
+
+    const updatedPlayers = (matchObj.players || []).filter(
+      (p) => !(p.uid === playerToRemove.uid && p.ffUid === playerToRemove.ffUid)
+    );
+
+    try {
+      await updateDoc(doc(db, "tournaments", matchId), {
+        players: updatedPlayers,
+      });
+      alert(`✅ ${playerToRemove.ffName} ko match se nikal diya gaya hai!`);
+    } catch (error) {
+      alert("Player hatane mein error aaya: " + error.message);
+    }
+  };
+
   const handleCancelAndRefundMatch = async (e) => {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
@@ -1093,9 +1114,18 @@ export default function Home() {
                         ) : (
                           <div className="space-y-1">
                             {m.players.map((p, i) => (
-                              <div key={i} className="flex justify-between text-[11px] text-slate-300 font-mono bg-slate-900 px-2 py-1 rounded">
-                                <span>{i+1}. {p.ffName}</span>
-                                <span className="text-green-400">UID: {p.ffUid}</span>
+                              <div key={i} className="flex justify-between items-center gap-2 text-[11px] text-slate-300 font-mono bg-slate-900 px-2 py-1 rounded">
+                                <span className="truncate">{i+1}. {p.ffName}</span>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-green-400">UID: {p.ffUid}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemovePlayerFromMatch(m.id, p)}
+                                    className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
