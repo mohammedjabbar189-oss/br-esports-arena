@@ -22,7 +22,6 @@ import {
   query,
   where,
   arrayUnion,
-  arrayRemove,
   increment 
 } from "firebase/firestore";
 
@@ -95,6 +94,17 @@ export default function Home() {
   const parsedPerKill = Math.max(0, Number(perKillRate) || 0);
   const killsTotal = parsedKills * parsedPerKill;
   const calculatedTotalPrize = parsedBooyah + killsTotal;
+
+  // 🚫 Helper: Check if user is removed/blocked from this match (by auth uid OR freeFireUid)
+  const isPlayerKickedFromMatch = (match, currentAuthUid, currentFfUid) => {
+    const kickedList = match?.kickedPlayers || [];
+    const cleanFfUid = String(currentFfUid || "").trim();
+    return kickedList.some((k) => {
+      const sameAuth = currentAuthUid && k.uid && k.uid === currentAuthUid;
+      const sameFf = cleanFfUid && k.ffUid && String(k.ffUid).trim() === cleanFfUid;
+      return Boolean(sameAuth || sameFf);
+    });
+  };
 
   // ⏰ Universal Helper function for 12-hour format with AM/PM
   const formatDateTime = (input) => {
@@ -319,10 +329,14 @@ export default function Home() {
     );
 
     const existingKicked = matchObj.kickedPlayers || [];
-    const alreadyKicked = existingKicked.some((k) => k.uid === playerToRemove.uid);
+    const alreadyKicked = existingKicked.some(
+      (k) =>
+        (k.uid && playerToRemove.uid && k.uid === playerToRemove.uid) ||
+        (k.ffUid && playerToRemove.ffUid && String(k.ffUid).trim() === String(playerToRemove.ffUid).trim())
+    );
     const kickedEntry = {
-      uid: playerToRemove.uid,
-      ffUid: playerToRemove.ffUid || "",
+      uid: playerToRemove.uid || "",
+      ffUid: String(playerToRemove.ffUid || "").trim(),
       ffName: playerToRemove.ffName || "Player",
     };
 
@@ -364,9 +378,11 @@ export default function Home() {
     const matchObj = tournaments.find((m) => m.id === matchId);
     if (!matchObj) return;
 
-    const updatedKicked = (matchObj.kickedPlayers || []).filter(
-      (k) => k.uid !== kickedPlayer.uid
-    );
+    const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
+      const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
+      return !(sameAuth || sameFf);
+    });
 
     try {
       await updateDoc(doc(db, "tournaments", matchId), {
@@ -506,39 +522,44 @@ export default function Home() {
   };
 
   const handleJoinMatch = async (match) => {
-    if (!userData.freeFireUid || !userData.freeFireName) {
+    if (!userData?.freeFireUid || !userData?.freeFireName) {
       alert("Pehle apni Free Fire UID aur IGN profile mein update karein!");
       return;
     }
 
-    if (match.kickedPlayers?.some(k => k.uid === user.uid)) {
+    // Fresh Firestore check so stale client state cannot bypass a kick/ban
+    const matchRef = doc(db, "tournaments", match.id);
+    const freshSnap = await getDoc(matchRef);
+    const freshMatch = freshSnap.exists() ? freshSnap.data() : match;
+
+    if (isPlayerKickedFromMatch(freshMatch, user.uid, userData.freeFireUid)) {
       return alert("⚠️ Aapko is match se remove/block kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.");
     }
 
-    if (match.players?.some(p => p.uid === user.uid)) {
+    if (freshMatch.players?.some(p => p.uid === user.uid || (userData.freeFireUid && String(p.ffUid || "").trim() === String(userData.freeFireUid).trim()))) {
       return alert("Aap pehle hi is match mein join ho chuke hain!");
     }
 
-    const slotLimit = Number(match.maxPlayers) || 48;
-    if ((match.players?.length || 0) >= slotLimit) {
+    const slotLimit = Number(freshMatch.maxPlayers) || 48;
+    if ((freshMatch.players?.length || 0) >= slotLimit) {
       return alert(`Match Full! Maximum ${slotLimit} players allowed hain.`);
     }
 
+    const feeAmt = Number(freshMatch.entryFee) || 0;
     const currentWallet = Number(userData.wallet) || 0;
-    if (currentWallet < match.entryFee) {
+    if (feeAmt > 0 && currentWallet < feeAmt) {
       alert("Wallet mein balance kam hai! Pehle Add Money karein.");
       setActiveTab("wallet");
       setWalletMode("add");
       return;
     }
 
-    const newBalance = currentWallet - match.entryFee;
+    const newBalance = currentWallet - feeAmt;
     const userRef = doc(db, "users", user.uid);
-    const matchRef = doc(db, "tournaments", match.id);
 
     const joinTx = {
-      text: `Joined Match: ${match.title}`,
-      amount: `-₹${match.entryFee}`,
+      text: `Joined Match: ${freshMatch.title}`,
+      amount: `-₹${feeAmt}`,
       date: formatDateTime(new Date())
     };
 
@@ -788,8 +809,12 @@ export default function Home() {
             </div>
           ) : (
             sortedTournaments.map((match) => {
-              const isJoined = match.players?.some(p => p.uid === user.uid);
-              const isRemoved = match.kickedPlayers?.some(k => k.uid === user.uid);
+              const isJoined = match.players?.some(
+                (p) =>
+                  p.uid === user.uid ||
+                  (userData?.freeFireUid && String(p.ffUid || "").trim() === String(userData.freeFireUid).trim())
+              );
+              const isRemoved = isPlayerKickedFromMatch(match, user.uid, userData?.freeFireUid);
               const slotLimit = Number(match.maxPlayers) || 48;
               const joinedCount = match.players?.length || 0;
               const isFull = joinedCount >= slotLimit;
@@ -817,7 +842,7 @@ export default function Home() {
                       </div>
                     ) : isRemoved ? (
                       <div className="mt-3 bg-red-950/40 border border-red-700/50 px-3 py-1.5 rounded text-xs text-red-300">
-                        ⚠️ Aapko is match se remove kiya gaya hai (entry refund wallet/history mein check karein).
+                        ⚠️ Aapko is match se remove kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.
                       </div>
                     ) : (
                       <div className="mt-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded text-xs text-slate-400">
@@ -837,7 +862,7 @@ export default function Home() {
                       </span>
                     ) : isRemoved ? (
                       <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
-                        Removed
+                        Blocked (Admin Allow Needed)
                       </span>
                     ) : isFull ? (
                       <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
