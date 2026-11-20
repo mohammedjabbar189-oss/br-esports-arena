@@ -47,6 +47,7 @@ export default function Home() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
+  const [isDarkMode, setIsDarkMode] = useState(true);
   
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
@@ -87,6 +88,48 @@ export default function Home() {
   const MERCHANT_UPI_ID = "Q894151488@ybl";
 
   const isAdmin = user?.email === ADMIN_EMAIL;
+
+  // 🎨 Theme Classes (Dark & Light)
+  const pageBg = isDarkMode ? "bg-slate-950 text-white" : "bg-slate-100 text-slate-900";
+  const cardBg = isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-slate-200 shadow-sm";
+  const subCardBg = isDarkMode ? "bg-slate-950 border-slate-800" : "bg-slate-50 border-slate-200";
+  const inputBg = isDarkMode
+    ? "bg-slate-950 border-slate-700 text-white placeholder-slate-500"
+    : "bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400";
+  const mutedText = isDarkMode ? "text-slate-400" : "text-slate-600";
+  const subtleText = isDarkMode ? "text-slate-500" : "text-slate-500";
+  const headingText = isDarkMode ? "text-yellow-400" : "text-amber-600";
+  const titleText = isDarkMode ? "text-white" : "text-slate-900";
+  const tabInactive = isDarkMode
+    ? "bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800"
+    : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200";
+  const borderDivider = isDarkMode ? "border-slate-800" : "border-slate-300";
+
+  // Load saved theme preference
+  useEffect(() => {
+    try {
+      const savedTheme = localStorage.getItem("br_esports_theme");
+      if (savedTheme === "light") {
+        setIsDarkMode(false);
+      } else if (savedTheme === "dark") {
+        setIsDarkMode(true);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("br_esports_theme", next ? "dark" : "light");
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
 
   // 🏆 Live Prize Calculation Helper
   const parsedBooyah = Math.max(0, Number(booyahAmount) || 0);
@@ -380,7 +423,7 @@ export default function Home() {
 
     const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
       const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
-      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(kickedPlayer.ffUid).trim();
       return !(sameAuth || sameFf);
     });
 
@@ -527,7 +570,6 @@ export default function Home() {
       return;
     }
 
-    // Fresh Firestore check so stale client state cannot bypass a kick/ban
     const matchRef = doc(db, "tournaments", match.id);
     const freshSnap = await getDoc(matchRef);
     const freshMatch = freshSnap.exists() ? freshSnap.data() : match;
@@ -666,23 +708,32 @@ export default function Home() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center">
-        <p className="text-yellow-400 font-bold text-lg animate-pulse">Loading BR Esports Arena...</p>
+      <div className={`min-h-screen ${pageBg} flex items-center justify-center`}>
+        <p className={`${headingText} font-bold text-lg animate-pulse`}>Loading BR Esports Arena...</p>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center shadow-2xl">
+      <main className={`min-h-screen ${pageBg} flex flex-col items-center justify-center p-4`}>
+        <div className={`max-w-md w-full border ${cardBg} p-8 rounded-2xl text-center shadow-2xl`}>
+          <div className="flex justify-end mb-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+            >
+              {isDarkMode ? "☀️ Light" : "🌙 Dark"}
+            </button>
+          </div>
           <span className="text-5xl block mb-4">🎮</span>
-          <h1 className="text-3xl font-extrabold text-yellow-400 mb-2">BR Esports Arena</h1>
-          <p className="text-slate-400 text-sm mb-6">Free Fire Solo Custom Room Tournaments. Jeeto Real Cash!</p>
+          <h1 className={`text-3xl font-extrabold ${headingText} mb-2`}>BR Esports Arena</h1>
+          <p className={`${mutedText} text-sm mb-6`}>Free Fire Solo Custom Room Tournaments. Jeeto Real Cash!</p>
           
           <button 
             onClick={handleGoogleLogin}
-            className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg cursor-pointer"
+            className="w-full bg-white hover:bg-slate-200 text-slate-950 font-bold py-3.5 px-4 rounded-xl flex items-center justify-center gap-3 transition shadow-lg cursor-pointer border border-slate-300"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.9 5 12 5z"/>
@@ -699,11 +750,20 @@ export default function Home() {
 
   if (userData && !userData.freeFireUid) {
     return (
-      <main className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-xl">
-          <h2 className="text-xl font-bold text-yellow-400 mb-1">Welcome, {user.displayName}!</h2>
-          <p className="text-sm text-slate-400 mb-2">Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
-          <p className="text-xs text-red-400 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
+      <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
+        <div className={`max-w-md w-full border ${cardBg} p-6 rounded-2xl shadow-xl`}>
+          <div className="flex justify-between items-center mb-2">
+            <h2 className={`text-xl font-bold ${headingText}`}>Welcome, {user.displayName}!</h2>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+            >
+              {isDarkMode ? "☀️ Light" : "🌙 Dark"}
+            </button>
+          </div>
+          <p className={`text-sm ${mutedText} mb-2`}>Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
+          <p className="text-xs text-red-500 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
           
           <form onSubmit={saveFreeFireDetails} className="space-y-4">
             <input 
@@ -711,7 +771,7 @@ export default function Home() {
               placeholder="Free Fire UID (e.g. 24589631)" 
               value={ffUid} 
               onChange={(e) => setFfUid(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white font-mono"
+              className={`w-full border p-3 rounded-lg font-mono ${inputBg}`}
               required
             />
             <input 
@@ -719,7 +779,7 @@ export default function Home() {
               placeholder="In-Game Name (IGN)" 
               value={ffName} 
               onChange={(e) => setFfName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 p-3 rounded-lg text-white"
+              className={`w-full border p-3 rounded-lg ${inputBg}`}
               required
             />
             <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition">
@@ -732,20 +792,20 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-white p-4">
+    <main className={`min-h-screen ${pageBg} p-4 transition-colors duration-200`}>
       {/* 🔥 Clean Header with ID & Live Support Link Right Next to It */}
-      <header className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4 mb-6 gap-3">
+      <header className={`flex flex-wrap justify-between items-center border-b ${borderDivider} pb-4 mb-6 gap-3`}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
           <div>
-            <h1 className="text-xl font-bold text-yellow-400">BR Esports Arena</h1>
+            <h1 className={`text-xl font-bold ${headingText}`}>BR Esports Arena</h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-xs text-slate-400">ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
+              <p className={`text-xs ${mutedText}`}>ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
               <a 
                 href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-[11px] text-yellow-400 underline hover:text-yellow-300 font-medium"
+                className={`text-[11px] ${headingText} underline font-medium`}
               >
                 UID change karwani hai? Support 💬
               </a>
@@ -753,39 +813,49 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title="Switch Light / Dark Theme"
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+          >
+            {isDarkMode ? "☀️ Light" : "🌙 Dark"}
+          </button>
+
           <button 
             onClick={() => { setActiveTab("wallet"); setWalletMode("add"); }}
-            className="bg-slate-900 border border-slate-700 hover:border-green-500 px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition"
+            className={`border px-3 py-1.5 rounded-lg flex items-center gap-2 cursor-pointer transition ${cardBg} hover:border-green-500`}
           >
-            <span className="text-xs text-slate-400">Wallet:</span>
-            <span className="font-bold text-green-400">₹{userData?.wallet ?? 0}</span>
+            <span className={`text-xs ${mutedText}`}>Wallet:</span>
+            <span className="font-bold text-green-500">₹{userData?.wallet ?? 0}</span>
             <span className="bg-green-600 text-white text-xs px-1.5 py-0.5 rounded font-bold">+ Add</span>
           </button>
+
           <button 
             onClick={handleLogout}
-            className="bg-red-600/20 border border-red-600 text-red-400 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
+            className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
           >
             Logout
           </button>
         </div>
       </header>
 
-      {/* 🔥 Clean Rules Section (Removed UID Notice) */}
-      <div className="bg-amber-950/40 border border-amber-600/50 p-3 rounded-lg mb-6 text-sm text-amber-200">
+      {/* 🔥 Clean Rules Section */}
+      <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
         <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
       </div>
 
-      <div className="flex gap-2 mb-6 border-b border-slate-800 pb-3 overflow-x-auto">
+      <div className={`flex gap-2 mb-6 border-b ${borderDivider} pb-3 overflow-x-auto`}>
         <button 
           onClick={() => setActiveTab("tournaments")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "tournaments" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
         >
           🏆 Tournaments
         </button>
         <button 
           onClick={() => setActiveTab("wallet")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
         >
           💳 Wallet & History
         </button>
@@ -793,7 +863,7 @@ export default function Home() {
         {isAdmin && (
           <button 
             onClick={() => setActiveTab("admin")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : "bg-slate-900 text-slate-300"}`}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "admin" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
           >
             🔒 Admin Panel
           </button>
@@ -803,9 +873,9 @@ export default function Home() {
       {activeTab === "tournaments" && (
         <div className="space-y-4">
           {sortedTournaments.length === 0 ? (
-            <div className="text-center py-12 bg-slate-900/50 border border-slate-800 rounded-xl">
+            <div className={`text-center py-12 border rounded-xl ${cardBg}`}>
               <span className="text-4xl mb-2 block">🎮</span>
-              <p className="text-slate-400">Filhal koi match active nahi hai.</p>
+              <p className={mutedText}>Filhal koi match active nahi hai.</p>
             </div>
           ) : (
             sortedTournaments.map((match) => {
@@ -820,52 +890,52 @@ export default function Home() {
               const isFull = joinedCount >= slotLimit;
 
               return (
-                <div key={match.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                <div key={match.id} className={`border p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 ${cardBg}`}>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-bold uppercase">Solo • Bermuda</span>
+                      <span className="text-xs bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-bold uppercase">Solo • Bermuda</span>
                       {match.timing && (
-                        <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded font-semibold">
+                        <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-semibold">
                           ⏰ {match.timing}
                         </span>
                       )}
                     </div>
-                    <h3 className="text-lg font-bold mt-2">{match.title}</h3>
-                    <p className="text-sm text-yellow-400 mt-1">Prize: {match.prizePool}</p>
-                    <p className="text-xs text-slate-400 mt-1">Players Joined: {joinedCount} / {slotLimit}</p>
+                    <h3 className={`text-lg font-bold mt-2 ${titleText}`}>{match.title}</h3>
+                    <p className={`text-sm font-semibold ${headingText} mt-1`}>Prize: {match.prizePool}</p>
+                    <p className={`text-xs ${mutedText} mt-1`}>Players Joined: {joinedCount} / {slotLimit}</p>
                     
                     {isJoined ? (
-                      <div className="mt-3 bg-slate-950 border border-green-700/50 px-3 py-2 rounded text-xs text-green-400 font-mono space-y-1">
-                        <p className="font-bold text-yellow-400">🎯 Your Room Credentials:</p>
-                        <p>Room ID: <span className="text-white font-bold">{match.roomId || "Pending (10 mins before match)"}</span></p>
-                        <p>Password: <span className="text-white font-bold">{match.roomPass || "Pending"}</span></p>
+                      <div className={`mt-3 border px-3 py-2 rounded text-xs font-mono space-y-1 ${subCardBg} border-green-700/50 text-green-500`}>
+                        <p className={`font-bold ${headingText}`}>🎯 Your Room Credentials:</p>
+                        <p>Room ID: <span className={`${titleText} font-bold`}>{match.roomId || "Pending (10 mins before match)"}</span></p>
+                        <p>Password: <span className={`${titleText} font-bold`}>{match.roomPass || "Pending"}</span></p>
                       </div>
                     ) : isRemoved ? (
-                      <div className="mt-3 bg-red-950/40 border border-red-700/50 px-3 py-1.5 rounded text-xs text-red-300">
+                      <div className={`mt-3 border px-3 py-1.5 rounded text-xs ${isDarkMode ? "bg-red-950/40 border-red-700/50 text-red-300" : "bg-red-50 border-red-300 text-red-700"}`}>
                         ⚠️ Aapko is match se remove kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.
                       </div>
                     ) : (
-                      <div className="mt-3 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded text-xs text-slate-400">
+                      <div className={`mt-3 border px-3 py-1.5 rounded text-xs ${subCardBg} ${mutedText}`}>
                         🔒 Join match to unlock Room ID & Password.
                       </div>
                     )}
                   </div>
 
-                  <div className="sm:text-right flex sm:block justify-between items-center border-t sm:border-t-0 border-slate-800 pt-3 sm:pt-0">
+                  <div className={`sm:text-right flex sm:block justify-between items-center border-t sm:border-t-0 ${borderDivider} pt-3 sm:pt-0`}>
                     <div>
-                      <p className="text-xs text-slate-400">Entry Fee</p>
-                      <p className="text-lg font-bold text-white mb-2">{match.entryFee === 0 ? "FREE" : `₹${match.entryFee}`}</p>
+                      <p className={`text-xs ${mutedText}`}>Entry Fee</p>
+                      <p className={`text-lg font-bold ${titleText} mb-2`}>{match.entryFee === 0 ? "FREE" : `₹${match.entryFee}`}</p>
                     </div>
                     {isJoined ? (
-                      <span className="bg-green-600/20 border border-green-600 text-green-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                      <span className="bg-green-600/20 border border-green-600 text-green-500 font-bold px-4 py-1.5 rounded-lg text-sm">
                         ✅ Joined
                       </span>
                     ) : isRemoved ? (
-                      <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                      <span className="bg-red-600/20 border border-red-600 text-red-500 font-bold px-4 py-1.5 rounded-lg text-sm">
                         Blocked (Admin Allow Needed)
                       </span>
                     ) : isFull ? (
-                      <span className="bg-red-600/20 border border-red-600 text-red-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                      <span className="bg-red-600/20 border border-red-600 text-red-500 font-bold px-4 py-1.5 rounded-lg text-sm">
                         Slot Full
                       </span>
                     ) : (
@@ -886,22 +956,22 @@ export default function Home() {
 
       {activeTab === "wallet" && (
         <div className="max-w-4xl mx-auto space-y-6">
-          <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-            <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5">
-              <span className="text-sm text-slate-400">Available Balance</span>
-              <span className="text-2xl font-extrabold text-green-400">₹{userData?.wallet ?? 0}</span>
+          <div className={`border p-6 rounded-xl ${cardBg}`}>
+            <div className={`flex justify-between items-center p-4 rounded-xl border mb-5 ${subCardBg}`}>
+              <span className={`text-sm ${mutedText}`}>Available Balance</span>
+              <span className="text-2xl font-extrabold text-green-500">₹{userData?.wallet ?? 0}</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 mb-6 bg-slate-950 p-1 rounded-lg">
+            <div className={`grid grid-cols-2 gap-2 mb-6 p-1 rounded-lg border ${subCardBg}`}>
               <button 
                 onClick={() => setWalletMode("add")}
-                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : "text-slate-400"}`}
+                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : mutedText}`}
               >
                 ➕ Add Money
               </button>
               <button 
                 onClick={() => setWalletMode("withdraw")}
-                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : "text-slate-400"}`}
+                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : mutedText}`}
               >
                 💸 Withdraw
               </button>
@@ -909,8 +979,8 @@ export default function Home() {
 
             {walletMode === "add" ? (
               <div>
-                <div className="bg-slate-950 border border-slate-800 p-6 rounded-xl text-center mb-5 flex flex-col items-center">
-                  <p className="text-xs text-slate-400 mb-3 font-semibold">Scan & Pay via PhonePe / Any UPI App:</p>
+                <div className={`border p-6 rounded-xl text-center mb-5 flex flex-col items-center ${subCardBg}`}>
+                  <p className={`text-xs ${mutedText} mb-3 font-semibold`}>Scan & Pay via PhonePe / Any UPI App:</p>
                   
                   <div className="bg-white p-4 rounded-2xl border-2 border-yellow-500/50 shadow-2xl inline-block">
                     <img 
@@ -920,9 +990,9 @@ export default function Home() {
                     />
                   </div>
                   
-                  <div className="mt-3 flex items-center gap-2 bg-slate-900 px-4 py-2 rounded-lg border border-slate-800 flex-wrap justify-center">
-                    <span className="text-xs text-slate-400">UPI ID:</span>
-                    <span className="text-xs text-yellow-400 font-mono font-bold">{MERCHANT_UPI_ID}</span>
+                  <div className={`mt-3 flex items-center gap-2 px-4 py-2 rounded-lg border flex-wrap justify-center ${cardBg}`}>
+                    <span className={`text-xs ${mutedText}`}>UPI ID:</span>
+                    <span className={`text-xs ${headingText} font-mono font-bold`}>{MERCHANT_UPI_ID}</span>
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(MERCHANT_UPI_ID);
@@ -933,7 +1003,7 @@ export default function Home() {
                       Copy
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-2">💻 PC user hain? Mobile se QR scan karein ya upar di gayi UPI ID par pay karein.</p>
+                  <p className={`text-[11px] ${mutedText} mt-2`}>💻 PC user hain? Mobile se QR scan karein ya upar di gayi UPI ID par pay karein.</p>
                 </div>
 
                 <form onSubmit={handleAddMoneyRequest} className="space-y-3">
@@ -942,7 +1012,7 @@ export default function Home() {
                     placeholder="Amount Paid (₹)" 
                     value={addAmount} 
                     onChange={(e) => setAddAmount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   />
                   <input 
@@ -951,13 +1021,13 @@ export default function Home() {
                     placeholder="Exact 12-Digit UTR Number" 
                     value={utrNumber} 
                     onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm font-mono"
+                    className={`w-full border p-2.5 rounded text-sm font-mono ${inputBg}`}
                     required
                   />
                   <button 
                     type="submit" 
                     disabled={submittingRequest}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
                   >
                     {submittingRequest ? "Verifying & Submitting..." : "Submit Deposit Request"}
                   </button>
@@ -970,7 +1040,7 @@ export default function Home() {
                   placeholder="Withdraw Amount (Min ₹30)" 
                   value={withdrawAmount} 
                   onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                   required
                 />
                 <input 
@@ -978,13 +1048,13 @@ export default function Home() {
                   placeholder="Your UPI ID" 
                   value={withdrawUpi} 
                   onChange={(e) => setWithdrawUpi(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                  className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                   required
                 />
                 <button 
                   type="submit" 
                   disabled={submittingRequest}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
                 >
                   {submittingRequest ? "Processing..." : "Request Withdrawal"}
                 </button>
@@ -993,38 +1063,38 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-              <h3 className="text-md font-bold text-yellow-400 mb-4">📋 My Requests Status</h3>
+            <div className={`border p-6 rounded-xl ${cardBg}`}>
+              <h3 className={`text-md font-bold ${headingText} mb-4`}>📋 My Requests Status</h3>
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {(!myRequests || myRequests.length === 0) ? (
-                  <p className="text-xs text-slate-500 text-center py-6">Koi request nahi hai.</p>
+                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi request nahi hai.</p>
                 ) : (
                   myRequests.map((req, idx) => {
                     const reqDate = formatDateTime(req.createdAt);
                     return (
-                      <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${subCardBg}`}>
                         <div>
-                          <p className="font-semibold text-slate-300">
+                          <p className={`font-semibold ${titleText}`}>
                             {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
                           </p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">
+                          <p className={`text-[10px] ${subtleText} mt-0.5`}>
                             {req.type === 'ADD' ? `UTR: ${req.utr}` : `UPI: ${req.upiId}`}
                           </p>
-                          {reqDate && <p className="text-[9px] text-slate-500 mt-0.5">{reqDate}</p>}
+                          {reqDate && <p className={`text-[9px] ${subtleText} mt-0.5`}>{reqDate}</p>}
                         </div>
                         <div>
                           {req.status === 'Pending' && (
-                            <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
+                            <span className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/50 px-2 py-1 rounded font-bold text-[10px] animate-pulse">
                               ⏳ Pending
                             </span>
                           )}
                           {req.status === 'Approved' && (
-                            <span className="bg-green-500/20 text-green-400 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                            <span className="bg-green-500/20 text-green-500 border border-green-500/50 px-2 py-1 rounded font-bold text-[10px]">
                               ✅ Approved
                             </span>
                           )}
                           {req.status === 'Rejected' && (
-                            <span className="bg-red-500/20 text-red-400 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
+                            <span className="bg-red-500/20 text-red-500 border border-red-500/50 px-2 py-1 rounded font-bold text-[10px]">
                               ❌ Rejected
                             </span>
                           )}
@@ -1036,21 +1106,21 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-              <h3 className="text-md font-bold text-yellow-400 mb-4">📜 Transaction History</h3>
+            <div className={`border p-6 rounded-xl ${cardBg}`}>
+              <h3 className={`text-md font-bold ${headingText} mb-4`}>📜 Transaction History</h3>
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {(!userData?.transactions || userData.transactions.length === 0) ? (
-                  <p className="text-xs text-slate-500 text-center py-6">Koi transaction history nahi hai.</p>
+                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi transaction history nahi hai.</p>
                 ) : (
                   [...userData.transactions].reverse().map((tx, idx) => {
                     const txDate = formatDateTime(tx.date);
                     return (
-                      <div key={idx} className="bg-slate-950 p-3 rounded-lg border border-slate-800 flex justify-between items-center text-xs">
+                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${subCardBg}`}>
                         <div>
-                          <p className="font-semibold text-slate-300">{tx.text}</p>
-                          <p className="text-[10px] text-slate-500 mt-0.5">{txDate}</p>
+                          <p className={`font-semibold ${titleText}`}>{tx.text}</p>
+                          <p className={`text-[10px] ${subtleText} mt-0.5`}>{txDate}</p>
                         </div>
-                        <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-400" : "text-red-400"}`}>
+                        <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-500" : "text-red-500"}`}>
                           {tx.amount}
                         </span>
                       </div>
@@ -1066,28 +1136,28 @@ export default function Home() {
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-slate-900 border border-yellow-500/50 p-6 rounded-xl h-fit">
-              <h2 className="text-lg font-bold mb-3 text-yellow-400">🔔 Pending Payment Requests</h2>
+            <div className={`border border-yellow-500/50 p-6 rounded-xl h-fit ${cardBg}`}>
+              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>🔔 Pending Payment Requests</h2>
               {walletRequests.length === 0 ? (
-                <p className="text-xs text-slate-500 py-4">Koi pending request nahi hai.</p>
+                <p className={`text-xs ${subtleText} py-4`}>Koi pending request nahi hai.</p>
               ) : (
                 <div className="space-y-3 max-h-[500px] overflow-y-auto">
                   {walletRequests.map(req => {
                     const reqDate = formatDateTime(req.createdAt);
                     return (
-                      <div key={req.id} className="bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs space-y-2">
+                      <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
                         <div className="flex justify-between">
-                          <span className="font-bold text-yellow-400">{req.userName} ({req.email})</span>
-                          <span className={`font-bold ${req.type === 'ADD' ? 'text-green-400' : 'text-blue-400'}`}>
+                          <span className={`font-bold ${headingText}`}>{req.userName} ({req.email})</span>
+                          <span className={`font-bold ${req.type === 'ADD' ? 'text-green-500' : 'text-blue-500'}`}>
                             {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
                           </span>
                         </div>
                         {req.type === 'ADD' ? (
-                          <p className="text-slate-300 font-mono">UTR: {req.utr}</p>
+                          <p className={`${mutedText} font-mono`}>UTR: {req.utr}</p>
                         ) : (
-                          <p className="text-slate-300 font-mono">UPI: {req.upiId}</p>
+                          <p className={`${mutedText} font-mono`}>UPI: {req.upiId}</p>
                         )}
-                        {reqDate && <p className="text-[10px] text-slate-500">{reqDate}</p>}
+                        {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
                         <div className="flex gap-2 pt-1">
                           <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
                             Approve
@@ -1104,15 +1174,15 @@ export default function Home() {
             </div>
 
             <div className="space-y-6">
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-4 text-yellow-400">Create New Tournament</h2>
+              <div className={`border p-6 rounded-xl ${cardBg}`}>
+                <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Create New Tournament</h2>
                 <form onSubmit={handleCreateMatch} className="space-y-3">
                   <input 
                     type="text" 
                     placeholder="Match Title (e.g. Solo Bermuda)" 
                     value={matchTitle} 
                     onChange={(e) => setMatchTitle(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <input 
@@ -1120,7 +1190,7 @@ export default function Home() {
                     placeholder="Match Timing (e.g. Today, 8:30 PM)" 
                     value={matchTime} 
                     onChange={(e) => setMatchTime(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <input 
@@ -1128,7 +1198,7 @@ export default function Home() {
                     placeholder="Entry Fee (0 for Free)" 
                     value={entryFee} 
                     onChange={(e) => setEntryFee(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <input 
@@ -1137,7 +1207,7 @@ export default function Home() {
                     placeholder="Max Players (e.g. 10 or 48)" 
                     value={maxPlayers} 
                     onChange={(e) => setMaxPlayers(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <input 
@@ -1145,7 +1215,7 @@ export default function Home() {
                     placeholder="Prize Pool (e.g. ₹300)" 
                     value={prizePool} 
                     onChange={(e) => setPrizePool(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
@@ -1154,13 +1224,13 @@ export default function Home() {
                 </form>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-4 text-yellow-400">Update Room ID & Password</h2>
+              <div className={`border p-6 rounded-xl ${cardBg}`}>
+                <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Update Room ID & Password</h2>
                 <form onSubmit={handleUpdateRoom} className="space-y-3">
                   <select 
                     value={selectedMatchId} 
                     onChange={(e) => setSelectedMatchId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   >
                     <option value="">-- Choose Match --</option>
@@ -1173,7 +1243,7 @@ export default function Home() {
                     placeholder="Room ID" 
                     value={roomIdInput} 
                     onChange={(e) => setRoomIdInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <input 
@@ -1181,7 +1251,7 @@ export default function Home() {
                     placeholder="Room Password" 
                     value={roomPassInput} 
                     onChange={(e) => setRoomPassInput(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
                   <button type="submit" className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded cursor-pointer">
@@ -1190,26 +1260,26 @@ export default function Home() {
                 </form>
               </div>
 
-              <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-3 text-yellow-400">👥 Joined Players Verification List</h2>
+              <div className={`border p-6 rounded-xl ${cardBg}`}>
+                <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players Verification List</h2>
                 <div className="space-y-3 max-h-72 overflow-y-auto">
                   {sortedTournaments.length === 0 ? (
-                    <p className="text-xs text-slate-500">Koi match nahi hai.</p>
+                    <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
                   ) : (
                     sortedTournaments.map(m => (
-                      <div key={m.id} className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                        <p className="text-xs font-bold text-yellow-300">
+                      <div key={m.id} className={`p-3 rounded-lg border space-y-2 ${subCardBg}`}>
+                        <p className={`text-xs font-bold ${headingText}`}>
                           {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
                         </p>
                         {(!m.players || m.players.length === 0) ? (
-                          <p className="text-[10px] text-slate-500">Abhi koi player join nahi hua.</p>
+                          <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
                         ) : (
                           <div className="space-y-1">
                             {m.players.map((p, i) => (
-                              <div key={i} className="flex justify-between items-center gap-2 text-[11px] text-slate-300 font-mono bg-slate-900 px-2 py-1 rounded">
-                                <span className="truncate">{i+1}. {p.ffName}</span>
+                              <div key={i} className={`flex justify-between items-center gap-2 text-[11px] font-mono px-2 py-1 rounded border ${cardBg}`}>
+                                <span className={`truncate ${titleText}`}>{i+1}. {p.ffName}</span>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-green-400">UID: {p.ffUid}</span>
+                                  <span className="text-green-500">UID: {p.ffUid}</span>
                                   <button
                                     type="button"
                                     onClick={() => handleRemovePlayerFromMatch(m.id, p)}
@@ -1224,10 +1294,10 @@ export default function Home() {
                         )}
 
                         {m.kickedPlayers && m.kickedPlayers.length > 0 && (
-                          <div className="pt-2 border-t border-slate-800/80 space-y-1">
-                            <p className="text-[10px] font-bold text-red-400">🚫 Removed / Blocked From Rejoin:</p>
+                          <div className={`pt-2 border-t ${borderDivider} space-y-1`}>
+                            <p className="text-[10px] font-bold text-red-500">🚫 Removed / Blocked From Rejoin:</p>
                             {m.kickedPlayers.map((k, kIdx) => (
-                              <div key={kIdx} className="flex justify-between items-center gap-2 text-[10px] text-slate-400 font-mono bg-red-950/20 border border-red-900/40 px-2 py-1 rounded">
+                              <div key={kIdx} className={`flex justify-between items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border ${isDarkMode ? "text-slate-400 bg-red-950/20 border-red-900/40" : "text-red-800 bg-red-50 border-red-200"}`}>
                                 <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
                                 <button
                                   type="button"
@@ -1246,9 +1316,9 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="bg-slate-900 border border-emerald-700/50 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-2 text-emerald-400">🏆 Send Winner Prize (Auto Calculator)</h2>
-                <p className="text-xs text-slate-400 mb-3">
+              <div className={`border border-emerald-700/50 p-6 rounded-xl ${cardBg}`}>
+                <h2 className="text-lg font-bold mb-2 text-emerald-500">🏆 Send Winner Prize (Auto Calculator)</h2>
+                <p className={`text-xs ${mutedText} mb-3`}>
                   Har match ke rule ke hisaab se Booyah + (Kills × Per-Kill Rate) daalein—total apne aap calculate ho jayega.
                 </p>
                 <form onSubmit={handleSendPrize} className="space-y-3">
@@ -1258,7 +1328,7 @@ export default function Home() {
                       setPrizeMatchId(e.target.value);
                       setPrizeWinnerUid("");
                     }}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   >
                     <option value="">-- Choose Match --</option>
@@ -1270,7 +1340,7 @@ export default function Home() {
                   <select 
                     value={prizeWinnerUid} 
                     onChange={(e) => setPrizeWinnerUid(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   >
                     <option value="">-- Choose Winner Player --</option>
@@ -1283,45 +1353,45 @@ export default function Home() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Booyah Prize (₹)</label>
+                      <label className={`block text-[11px] ${mutedText} mb-1`}>Booyah Prize (₹)</label>
                       <input 
                         type="number" 
                         min="0"
                         placeholder="e.g. 30 / 300 / 500" 
                         value={booyahAmount} 
                         onChange={(e) => setBooyahAmount(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Kills Count</label>
+                      <label className={`block text-[11px] ${mutedText} mb-1`}>Kills Count</label>
                       <input 
                         type="number" 
                         min="0"
                         placeholder="e.g. 5" 
                         value={killsCount} 
                         onChange={(e) => setKillsCount(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">Per Kill Rate (₹)</label>
+                      <label className={`block text-[11px] ${mutedText} mb-1`}>Per Kill Rate (₹)</label>
                       <input 
                         type="number" 
                         min="0"
                         placeholder="e.g. 3 / 7 / 10" 
                         value={perKillRate} 
                         onChange={(e) => setPerKillRate(e.target.value)}
-                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       />
                     </div>
                   </div>
 
-                  <div className="bg-slate-950 border border-emerald-800/60 rounded-lg p-3 flex justify-between items-center text-xs">
-                    <span className="text-slate-400">
-                      Kills Bonus: <strong className="text-slate-200">₹{killsTotal}</strong> ({parsedKills} × ₹{parsedPerKill})
+                  <div className={`border border-emerald-800/60 rounded-lg p-3 flex justify-between items-center text-xs ${subCardBg}`}>
+                    <span className={mutedText}>
+                      Kills Bonus: <strong className={titleText}>₹{killsTotal}</strong> ({parsedKills} × ₹{parsedPerKill})
                     </span>
-                    <span className="text-sm font-extrabold text-emerald-400">
+                    <span className="text-sm font-extrabold text-emerald-500">
                       Total Payout: ₹{calculatedTotalPrize}
                     </span>
                   </div>
@@ -1329,20 +1399,20 @@ export default function Home() {
                   <button 
                     type="submit" 
                     disabled={sendingPrize || calculatedTotalPrize <= 0}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
                   >
                     {sendingPrize ? "Sending Prize..." : `Send ₹${calculatedTotalPrize} to Winner Wallet`}
                   </button>
                 </form>
               </div>
 
-              <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-2 text-red-400">Cancel Match & Refund</h2>
+              <div className={`border border-red-900/50 p-6 rounded-xl ${cardBg}`}>
+                <h2 className="text-lg font-bold mb-2 text-red-500">Cancel Match & Refund</h2>
                 <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
                   <select 
                     value={cancelMatchId} 
                     onChange={(e) => setCancelMatchId(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   >
                     <option value="">-- Choose Match to Cancel --</option>
@@ -1372,9 +1442,9 @@ export default function Home() {
       </a>
 
       {/* 📜 Terms & Conditions Footer Note */}
-      <footer className="mt-12 py-6 border-t border-slate-800 text-center text-xs text-slate-400 px-4">
+      <footer className={`mt-12 py-6 border-t ${borderDivider} text-center text-xs ${mutedText} px-4`}>
         <p className="mb-2">© 2026 BR Esports Arena. All rights reserved.</p>
-        <p className="max-w-xl mx-auto text-slate-500 leading-relaxed">
+        <p className={`max-w-xl mx-auto ${subtleText} leading-relaxed`}>
           <strong>Disclaimer:</strong> BR Esports Arena is an Esports Skill-Based Tournament Platform. 
           This is not a gambling, betting, or lottery app. All matches are purely based on player skills in Free Fire.
         </p>
