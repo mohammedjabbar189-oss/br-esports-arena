@@ -66,6 +66,13 @@ export default function Home() {
   const [roomPassInput, setRoomPassInput] = useState("");
   const [cancelMatchId, setCancelMatchId] = useState("");
 
+  // Admin Prize / Winnings States
+  const [prizeMatchId, setPrizeMatchId] = useState("");
+  const [prizeWinnerUid, setPrizeWinnerUid] = useState("");
+  const [prizeAmount, setPrizeAmount] = useState("");
+  const [prizeNote, setPrizeNote] = useState("Booyah Prize");
+  const [sendingPrize, setSendingPrize] = useState(false);
+
   // Wallet States
   const [walletMode, setWalletMode] = useState("add");
   const [addAmount, setAddAmount] = useState("");
@@ -315,6 +322,48 @@ export default function Home() {
     await deleteDoc(doc(db, "tournaments", cancelMatchId));
     alert(`Match cancelled successfully! Refunded ₹${entryFeeAmount} to ${playersList.length} players.`);
     setCancelMatchId("");
+  };
+
+  const handleSendPrize = async (e) => {
+    e.preventDefault();
+    if (!isAdmin) return alert("Unauthorized!");
+    if (sendingPrize) return;
+
+    const amt = Number(prizeAmount);
+    if (!prizeMatchId) return alert("Pehle match select karein!");
+    if (!prizeWinnerUid) return alert("Winner player select karein!");
+    if (!amt || amt <= 0) return alert("Sahi prize amount daalein!");
+
+    const selectedMatch = tournaments.find(m => m.id === prizeMatchId);
+    const winnerPlayer = selectedMatch?.players?.find(p => p.uid === prizeWinnerUid);
+
+    setSendingPrize(true);
+    try {
+      const winnerRef = doc(db, "users", prizeWinnerUid);
+      const cleanNote = prizeNote.trim() || "Match Winnings";
+      const matchLabel = selectedMatch?.title ? ` (${selectedMatch.title})` : "";
+
+      const winTx = {
+        text: `${cleanNote}${matchLabel}`,
+        amount: `+₹${amt}`,
+        date: formatDateTime(new Date())
+      };
+
+      await updateDoc(winnerRef, {
+        wallet: increment(amt),
+        transactions: arrayUnion(winTx)
+      });
+
+      alert(
+        `✅ ₹${amt} winner${winnerPlayer?.ffName ? ` (${winnerPlayer.ffName})` : ""} ke wallet mein add ho gaya!`
+      );
+      setPrizeAmount("");
+      setPrizeWinnerUid("");
+    } catch (error) {
+      alert("Prize bhejne mein error aaya: " + error.message);
+    } finally {
+      setSendingPrize(false);
+    }
   };
 
   const handleProcessRequest = async (req, action) => {
@@ -1011,6 +1060,70 @@ export default function Home() {
                     ))
                   )}
                 </div>
+              </div>
+
+              <div className="bg-slate-900 border border-emerald-700/50 p-6 rounded-xl">
+                <h2 className="text-lg font-bold mb-2 text-emerald-400">🏆 Send Winner Prize</h2>
+                <p className="text-xs text-slate-400 mb-3">
+                  Rules reminder: Free Booyah = ₹30 | Paid Booyah (Min 3 Kills) = ₹300 + ₹3/kill
+                </p>
+                <form onSubmit={handleSendPrize} className="space-y-3">
+                  <select 
+                    value={prizeMatchId} 
+                    onChange={(e) => {
+                      setPrizeMatchId(e.target.value);
+                      setPrizeWinnerUid("");
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  >
+                    <option value="">-- Choose Match --</option>
+                    {sortedTournaments.map(m => (
+                      <option key={m.id} value={m.id}>{m.title} ({m.timing}) - Players: {m.players?.length || 0}</option>
+                    ))}
+                  </select>
+
+                  <select 
+                    value={prizeWinnerUid} 
+                    onChange={(e) => setPrizeWinnerUid(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required
+                  >
+                    <option value="">-- Choose Winner Player --</option>
+                    {(tournaments.find(m => m.id === prizeMatchId)?.players || []).map((p, idx) => (
+                      <option key={`${p.uid}-${idx}`} value={p.uid}>
+                        {idx + 1}. {p.ffName} (UID: {p.ffUid})
+                      </option>
+                    ))}
+                  </select>
+
+                  <input 
+                    type="number" 
+                    min="1"
+                    placeholder="Prize Amount in ₹ (e.g. 30 or 315)" 
+                    value={prizeAmount} 
+                    onChange={(e) => setPrizeAmount(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+
+                  <input 
+                    type="text" 
+                    placeholder="Reason (e.g. Paid Booyah + 5 Kills)" 
+                    value={prizeNote} 
+                    onChange={(e) => setPrizeNote(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                    required 
+                  />
+
+                  <button 
+                    type="submit" 
+                    disabled={sendingPrize}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
+                  >
+                    {sendingPrize ? "Sending Prize..." : "Add Prize to Winner Wallet"}
+                  </button>
+                </form>
               </div>
 
               <div className="bg-slate-900 border border-red-900/50 p-6 rounded-xl">
