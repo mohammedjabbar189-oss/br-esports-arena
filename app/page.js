@@ -66,11 +66,12 @@ export default function Home() {
   const [roomPassInput, setRoomPassInput] = useState("");
   const [cancelMatchId, setCancelMatchId] = useState("");
 
-  // Admin Prize / Winnings States
+  // Admin Prize / Winnings States (Booyah + Kills × Per-Kill Rate)
   const [prizeMatchId, setPrizeMatchId] = useState("");
   const [prizeWinnerUid, setPrizeWinnerUid] = useState("");
-  const [prizeAmount, setPrizeAmount] = useState("");
-  const [prizeNote, setPrizeNote] = useState("Booyah Prize");
+  const [booyahAmount, setBooyahAmount] = useState("300");
+  const [killsCount, setKillsCount] = useState("0");
+  const [perKillRate, setPerKillRate] = useState("3");
   const [sendingPrize, setSendingPrize] = useState(false);
 
   // Wallet States
@@ -85,6 +86,13 @@ export default function Home() {
   const MERCHANT_UPI_ID = "Q894151488@ybl";
 
   const isAdmin = user?.email === ADMIN_EMAIL;
+
+  // 🏆 Live Prize Calculation Helper
+  const parsedBooyah = Math.max(0, Number(booyahAmount) || 0);
+  const parsedKills = Math.max(0, Number(killsCount) || 0);
+  const parsedPerKill = Math.max(0, Number(perKillRate) || 0);
+  const killsTotal = parsedKills * parsedPerKill;
+  const calculatedTotalPrize = parsedBooyah + killsTotal;
 
   // ⏰ Universal Helper function for 12-hour format with AM/PM
   const formatDateTime = (input) => {
@@ -329,10 +337,9 @@ export default function Home() {
     if (!isAdmin) return alert("Unauthorized!");
     if (sendingPrize) return;
 
-    const amt = Number(prizeAmount);
     if (!prizeMatchId) return alert("Pehle match select karein!");
     if (!prizeWinnerUid) return alert("Winner player select karein!");
-    if (!amt || amt <= 0) return alert("Sahi prize amount daalein!");
+    if (calculatedTotalPrize <= 0) return alert("Total prize amount ₹0 se zyada hona chahiye!");
 
     const selectedMatch = tournaments.find(m => m.id === prizeMatchId);
     const winnerPlayer = selectedMatch?.players?.find(p => p.uid === prizeWinnerUid);
@@ -340,24 +347,34 @@ export default function Home() {
     setSendingPrize(true);
     try {
       const winnerRef = doc(db, "users", prizeWinnerUid);
-      const cleanNote = prizeNote.trim() || "Match Winnings";
       const matchLabel = selectedMatch?.title ? ` (${selectedMatch.title})` : "";
 
+      const parts = [];
+      if (parsedBooyah > 0) parts.push(`Booyah ₹${parsedBooyah}`);
+      if (parsedKills > 0) {
+        parts.push(
+          parsedPerKill > 0
+            ? `${parsedKills} Kills (@₹${parsedPerKill}/kill = ₹${killsTotal})`
+            : `${parsedKills} Kills`
+        );
+      }
+      const breakdownText = parts.length > 0 ? parts.join(" + ") : "Match Prize";
+
       const winTx = {
-        text: `${cleanNote}${matchLabel}`,
-        amount: `+₹${amt}`,
+        text: `${breakdownText}${matchLabel}`,
+        amount: `+₹${calculatedTotalPrize}`,
         date: formatDateTime(new Date())
       };
 
       await updateDoc(winnerRef, {
-        wallet: increment(amt),
+        wallet: increment(calculatedTotalPrize),
         transactions: arrayUnion(winTx)
       });
 
       alert(
-        `✅ ₹${amt} winner${winnerPlayer?.ffName ? ` (${winnerPlayer.ffName})` : ""} ke wallet mein add ho gaya!`
+        `✅ ₹${calculatedTotalPrize} (${breakdownText}) winner${winnerPlayer?.ffName ? ` (${winnerPlayer.ffName})` : ""} ke wallet mein add ho gaya!`
       );
-      setPrizeAmount("");
+      setKillsCount("0");
       setPrizeWinnerUid("");
     } catch (error) {
       alert("Prize bhejne mein error aaya: " + error.message);
@@ -1063,9 +1080,9 @@ export default function Home() {
               </div>
 
               <div className="bg-slate-900 border border-emerald-700/50 p-6 rounded-xl">
-                <h2 className="text-lg font-bold mb-2 text-emerald-400">🏆 Send Winner Prize</h2>
+                <h2 className="text-lg font-bold mb-2 text-emerald-400">🏆 Send Winner Prize (Auto Calculator)</h2>
                 <p className="text-xs text-slate-400 mb-3">
-                  Rules reminder: Free Booyah = ₹30 | Paid Booyah (Min 3 Kills) = ₹300 + ₹3/kill
+                  Har match ke rule ke hisaab se Booyah + (Kills × Per-Kill Rate) daalein—total apne aap calculate ho jayega.
                 </p>
                 <form onSubmit={handleSendPrize} className="space-y-3">
                   <select 
@@ -1097,31 +1114,57 @@ export default function Home() {
                     ))}
                   </select>
 
-                  <input 
-                    type="number" 
-                    min="1"
-                    placeholder="Prize Amount in ₹ (e.g. 30 or 315)" 
-                    value={prizeAmount} 
-                    onChange={(e) => setPrizeAmount(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                    required 
-                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Booyah Prize (₹)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="e.g. 30 / 300 / 500" 
+                        value={booyahAmount} 
+                        onChange={(e) => setBooyahAmount(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Kills Count</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="e.g. 5" 
+                        value={killsCount} 
+                        onChange={(e) => setKillsCount(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1">Per Kill Rate (₹)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="e.g. 3 / 7 / 10" 
+                        value={perKillRate} 
+                        onChange={(e) => setPerKillRate(e.target.value)}
+                        className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
+                      />
+                    </div>
+                  </div>
 
-                  <input 
-                    type="text" 
-                    placeholder="Reason (e.g. Paid Booyah + 5 Kills)" 
-                    value={prizeNote} 
-                    onChange={(e) => setPrizeNote(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 p-2.5 rounded text-white text-sm"
-                    required 
-                  />
+                  <div className="bg-slate-950 border border-emerald-800/60 rounded-lg p-3 flex justify-between items-center text-xs">
+                    <span className="text-slate-400">
+                      Kills Bonus: <strong className="text-slate-200">₹{killsTotal}</strong> ({parsedKills} × ₹{parsedPerKill})
+                    </span>
+                    <span className="text-sm font-extrabold text-emerald-400">
+                      Total Payout: ₹{calculatedTotalPrize}
+                    </span>
+                  </div>
 
                   <button 
                     type="submit" 
-                    disabled={sendingPrize}
+                    disabled={sendingPrize || calculatedTotalPrize <= 0}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-700 text-white font-bold py-2.5 rounded cursor-pointer"
                   >
-                    {sendingPrize ? "Sending Prize..." : "Add Prize to Winner Wallet"}
+                    {sendingPrize ? "Sending Prize..." : `Send ₹${calculatedTotalPrize} to Winner Wallet`}
                   </button>
                 </form>
               </div>
