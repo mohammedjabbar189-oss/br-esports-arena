@@ -804,42 +804,93 @@ export default function Home() {
 
   if (userData && !userData.freeFireUid) {
     return (
-      <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
-        <div className={`max-w-md w-full border ${cardBg} p-6 rounded-2xl shadow-xl`}>
-          <div className="flex justify-between items-center mb-2">
-            <h2 className={`text-xl font-bold ${headingText}`}>Welcome, {user.displayName}!</h2>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
-            >
-              {isDarkMode ? "☀️ Light" : "🌙 Dark"}
-            </button>
+      <main className={`min-h-screen ${pageBg} py-8 px-4`}>
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className={`border ${cardBg} p-6 rounded-2xl shadow-xl`}>
+            <div className="flex justify-between items-center mb-2 gap-2">
+              <h2 className={`text-xl font-bold ${headingText}`}>Welcome, {user.displayName}!</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+                >
+                  {isDarkMode ? "☀️ Light" : "🌙 Dark"}
+                </button>
+                <button 
+                  type="button"
+                  onClick={handleLogout}
+                  className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+            <p className={`text-sm ${mutedText} mb-2`}>Pehle apni asli Free Fire UID daalein (jo aapki pehle se hai, 8 se 12 digits):</p>
+            <p className="text-xs text-red-500 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
+            
+            <form onSubmit={saveFreeFireDetails} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <input 
+                type="text" 
+                placeholder="Asli Free Fire UID (e.g. 24589631)" 
+                value={ffUid} 
+                onChange={(e) => setFfUid(e.target.value)}
+                className={`w-full border p-3 rounded-lg font-mono text-sm ${inputBg}`}
+                required
+              />
+              <input 
+                type="text" 
+                placeholder="In-Game Name (IGN)" 
+                value={ffName} 
+                onChange={(e) => setFfName(e.target.value)}
+                className={`w-full border p-3 rounded-lg text-sm ${inputBg}`}
+                required
+              />
+              <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition text-sm">
+                Save & Lock UID 🔒🚀
+              </button>
+            </form>
           </div>
-          <p className={`text-sm ${mutedText} mb-2`}>Apni Asli Free Fire UID link karo (8 se 12 digits):</p>
-          <p className="text-xs text-red-500 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
-          
-          <form onSubmit={saveFreeFireDetails} className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="Free Fire UID (e.g. 24589631)" 
-              value={ffUid} 
-              onChange={(e) => setFfUid(e.target.value)}
-              className={`w-full border p-3 rounded-lg font-mono ${inputBg}`}
-              required
-            />
-            <input 
-              type="text" 
-              placeholder="In-Game Name (IGN)" 
-              value={ffName} 
-              onChange={(e) => setFfName(e.target.value)}
-              className={`w-full border p-3 rounded-lg ${inputBg}`}
-              required
-            />
-            <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition">
-              Save & Lock UID 🔒🚀
-            </button>
-          </form>
+
+          {/* 📖 How to Play Shown Immediately After Google Login */}
+          <div className={`border ${cardBg} p-5 sm:p-6 rounded-2xl space-y-5`}>
+            <div>
+              <h2 className={`text-xl font-bold ${headingText}`}>📖 How to Play — Naye Players Ke Liye Complete Guide</h2>
+              <p className={`text-xs ${mutedText} mt-1`}>
+                Google login ke baad pehle apni asli Free Fire UID daalein, aur phir neeche diye gaye steps follow karein:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  Sabse pehle apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>2. Wallet Mein Paise Kaise Add Karein?</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  UID lock hone ke baad <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>3. Match Join & Room ID / Password</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  <strong className={titleText}>🏆 Tournaments</strong> tab mein apna match chunein aur <strong className={titleText}>Join Now</strong> dabayein. Join hoti hi match card ke andar credentials section dikhega aur <strong className={titleText}>match se 10 minutes pehle aapko Room ID and Password milega</strong>.
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai. Minimum <strong className={titleText}>₹30</strong> hone par <strong className={titleText}>💸 Withdraw</strong> se apni UPI ID mein nikaal sakte hain.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </main>
     );
@@ -1379,9 +1430,9 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>1. Free Fire UID & IGN Lock</p>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Login ke baad apni 8–12 digit ki asli Free Fire UID aur In-Game Name (IGN) daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                  Google se login hote hi apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
                 </p>
               </div>
 
