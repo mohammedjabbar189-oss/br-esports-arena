@@ -49,6 +49,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("tournaments");
   const [adminSection, setAdminSection] = useState("matches");
   const [walletHistoryTab, setWalletHistoryTab] = useState("transactions");
+  const [showQuickGuide, setShowQuickGuide] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
   
   const [ffUid, setFfUid] = useState("");
@@ -463,7 +464,7 @@ export default function Home() {
 
     const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
       const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
-      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(kickedPlayer.ffUid).trim();
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
       return !(sameAuth || sameFf);
     });
 
@@ -924,6 +925,12 @@ export default function Home() {
         >
           📜 History
         </button>
+        <button 
+          onClick={() => setActiveTab("guide")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "guide" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
+        >
+          📖 How to Play
+        </button>
         
         {isAdmin && (
           <button 
@@ -937,6 +944,34 @@ export default function Home() {
 
       {activeTab === "tournaments" && (
         <div className="space-y-4">
+          {showQuickGuide && (
+            <div className={`border p-3.5 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 text-xs ${cardBg}`}>
+              <div className="space-y-1">
+                <p className={`font-bold ${headingText}`}>👋 Naye Player hain? Bas 3 steps mein khelein:</p>
+                <p className={mutedText}>
+                  1. <strong className={titleText}>Wallet</strong> mein QR/UPI se pay karke 12-digit UTR submit karein • 2. Match <strong className={titleText}>Join Now</strong> karein aur yahin <strong className={titleText}>Room ID & Pass</strong> lein • 3. Jeetne par paisa Wallet mein aayega, <strong className={titleText}>History</strong> mein record dekhein.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("guide")}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-3 py-1.5 rounded-lg cursor-pointer transition"
+                >
+                  Full Guide
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowQuickGuide(false)}
+                  className={`px-2.5 py-1.5 rounded-lg font-semibold cursor-pointer transition ${tabInactive}`}
+                  title="Hide tip"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {sortedTournaments.length === 0 ? (
             <div className={`text-center py-12 border rounded-xl ${cardBg}`}>
               <span className="text-4xl mb-2 block">🎮</span>
@@ -1317,6 +1352,56 @@ export default function Home() {
                 )}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "guide" && (
+        <div className="max-w-4xl mx-auto">
+          <div className={`border p-5 sm:p-6 rounded-2xl space-y-5 ${cardBg}`}>
+            <div>
+              <h2 className={`text-xl font-bold ${headingText}`}>📖 Naye Players Ke Liye Complete Guide</h2>
+              <p className={`text-xs ${mutedText} mt-1`}>
+                BR Esports Arena par match khelne, paisa add/withdraw karne, aur winnings paane ka poora process neeche diya gaya hai.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>1. Free Fire UID & IGN Lock</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  Login ke baad apni 8–12 digit ki asli Free Fire UID aur In-Game Name (IGN) daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>2. Wallet Mein Paise Kaise Add Karein?</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>3. Match Join & Room ID / Password</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  <strong className={titleText}>🏆 Tournaments</strong> tab mein apna match chunein aur <strong className={titleText}>Join Now</strong> dabayein. Join hone ke baad usi match card ke andar <strong className={titleText}>Room ID & Password</strong> dikh jayega (match se pehle update hota hai).
+                </p>
+              </div>
+
+              <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
+                <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
+                <p className={`text-xs ${mutedText} leading-relaxed`}>
+                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai. Minimum <strong className={titleText}>₹30</strong> hone par <strong className={titleText}>💸 Withdraw</strong> se apni UPI ID mein nikaal sakte hain.
+                </p>
+              </div>
+            </div>
+
+            <div className={`border p-4 rounded-xl text-xs space-y-1 ${subCardBg}`}>
+              <p className={`font-bold ${titleText}`}>💡 Zaroori Baatein:</p>
+              <p className={mutedText}>• Kisi bhi UTR ya withdrawal request ka status dekhne ke liye <strong className={titleText}>📜 History → My Requests</strong> check karein.</p>
+              <p className={mutedText}>• Agar match cancel hota hai ya admin aapko match se remove karta hai, toh entry fee ka refund wallet mein aa jata hai.</p>
+              <p className={mutedText}>• Kisi bhi madad ke liye neeche <strong className={titleText}>Live Support</strong> button par click karein.</p>
+            </div>
           </div>
         </div>
       )}
