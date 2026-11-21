@@ -906,7 +906,7 @@ export default function Home() {
               <div>
                 <h2 className={`text-xl sm:text-2xl font-bold ${headingText}`}>📖 How to Play — Naye Players Ke Liye Complete Guide</h2>
                 <p className={`text-xs ${mutedText} mt-1`}>
-                  Welcome, <strong className={titleText}>{user.displayName}</strong>! Pehle poora process samjhein—apni asli Free Fire UID (jo aapki pehle se hai) aap baad mein bhi daal sakte hain.
+                  Welcome, <strong className={titleText}>{user.displayName}</strong>! Pehle poora process samjhein—apni Free Fire UID aap baad mein bhi daal sakte hain.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -929,9 +929,9 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein (Aapki Pehle Se Hai)</p>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform dekhne ke baad ya match join karte waqt bhi apni UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform dekhne ke baad ya match join karte waqt bhi UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti.
                 </p>
               </div>
 
@@ -1067,7 +1067,7 @@ export default function Home() {
               </button>
             </div>
             <p className={`text-xs ${mutedText}`}>
-              Apni asli Free Fire UID daalein (jo aapki pehle se hai, 8 se 12 digits) aur In-Game Name (IGN):
+              Apni asli Free Fire UID daalein (8 se 12 digits) aur In-Game Name (IGN):
             </p>
             <p className="text-[11px] text-red-500 font-semibold">
               ⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!
@@ -1593,9 +1593,9 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein (Aapki Pehle Se Hai)</p>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform explore karne ke baad ya match join karte waqt bhi apni UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform explore karne ke baad ya match join karte waqt bhi UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
                 </p>
               </div>
 
