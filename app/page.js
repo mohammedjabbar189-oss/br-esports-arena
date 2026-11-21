@@ -51,6 +51,10 @@ export default function Home() {
   const [walletHistoryTab, setWalletHistoryTab] = useState("transactions");
   const [showQuickGuide, setShowQuickGuide] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // Onboarding How-To-Play & Optional UID Modal States
+  const [hasPassedIntroGuide, setHasPassedIntroGuide] = useState(false);
+  const [showUidModal, setShowUidModal] = useState(false);
   
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
@@ -245,6 +249,7 @@ export default function Home() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        setHasPassedIntroGuide(false);
         const userRef = doc(db, "users", currentUser.uid);
         
         unsubscribeUser = onSnapshot(userRef, (userSnap) => {
@@ -257,6 +262,8 @@ export default function Home() {
             if (data.freeFireUid) {
               setFfUid(data.freeFireUid);
               setFfName(data.freeFireName || "");
+              setHasPassedIntroGuide(true);
+              setShowUidModal(false);
             }
           } else {
             const initialData = {
@@ -292,6 +299,8 @@ export default function Home() {
       } else {
         setUser(null);
         setUserData(null);
+        setHasPassedIntroGuide(false);
+        setShowUidModal(false);
         setWalletRequests([]);
         setMyRequests([]);
       }
@@ -354,6 +363,8 @@ export default function Home() {
     const userRef = doc(db, "users", user.uid);
     await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
     setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
+    setShowUidModal(false);
+    setHasPassedIntroGuide(true);
     alert("✅ Free Fire ID Successfully Locked & Saved!");
   };
 
@@ -620,7 +631,8 @@ export default function Home() {
 
   const handleJoinMatch = async (match) => {
     if (!userData?.freeFireUid || !userData?.freeFireName) {
-      alert("Pehle apni Free Fire UID aur IGN profile mein update karein!");
+      alert("Match join karne ke liye pehle apni asli Free Fire UID aur IGN save karein!");
+      setShowUidModal(true);
       return;
     }
 
@@ -707,7 +719,7 @@ export default function Home() {
       await addDoc(collection(db, "wallet_requests"), {
         type: "ADD",
         userId: user.uid,
-        userName: userData.freeFireName,
+        userName: userData?.freeFireName || user.displayName || "Player",
         email: user.email,
         amount: amt,
         utr: cleanUtr,
@@ -730,7 +742,7 @@ export default function Home() {
     if (submittingRequest) return;
 
     const amt = Number(withdrawAmount);
-    const currentWallet = Number(userData.wallet) || 0;
+    const currentWallet = Number(userData?.wallet) || 0;
     if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
     if (amt > currentWallet) return alert("Aapke wallet mein itna balance nahi hai!");
     if (!withdrawUpi) return alert("Apna UPI ID daalein!");
@@ -742,7 +754,7 @@ export default function Home() {
       await addDoc(collection(db, "wallet_requests"), {
         type: "WITHDRAW",
         userId: user.uid,
-        userName: userData.freeFireName,
+        userName: userData?.freeFireName || user.displayName || "Player",
         email: user.email,
         amount: amt,
         upiId: withdrawUpi.trim(),
@@ -802,77 +814,49 @@ export default function Home() {
     );
   }
 
-  if (userData && !userData.freeFireUid) {
+  // 📖 Immediately After Google Login: Show How to Play First with Skip / Next Button
+  if (userData && !userData.freeFireUid && !hasPassedIntroGuide) {
     return (
       <main className={`min-h-screen ${pageBg} py-8 px-4`}>
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className={`border ${cardBg} p-6 rounded-2xl shadow-xl`}>
-            <div className="flex justify-between items-center mb-2 gap-2">
-              <h2 className={`text-xl font-bold ${headingText}`}>Welcome, {user.displayName}!</h2>
+        <div className="max-w-4xl mx-auto">
+          <div className={`border ${cardBg} p-5 sm:p-6 rounded-2xl space-y-5 shadow-xl`}>
+            <div className="flex flex-wrap justify-between items-start gap-3">
+              <div>
+                <h2 className={`text-xl sm:text-2xl font-bold ${headingText}`}>📖 How to Play — Naye Players Ke Liye Complete Guide</h2>
+                <p className={`text-xs ${mutedText} mt-1`}>
+                  Welcome, <strong className={titleText}>{user.displayName}</strong>! Pehle poora process samjhein—apni asli Free Fire UID (jo aapki pehle se hai) aap baad mein bhi daal sakte hain.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
                 >
                   {isDarkMode ? "☀️ Light" : "🌙 Dark"}
                 </button>
                 <button 
                   type="button"
                   onClick={handleLogout}
-                  className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                  className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
                   Logout
                 </button>
               </div>
             </div>
-            <p className={`text-sm ${mutedText} mb-2`}>Pehle apni asli Free Fire UID daalein (jo aapki pehle se hai, 8 se 12 digits):</p>
-            <p className="text-xs text-red-500 mb-5 font-semibold">⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!</p>
-            
-            <form onSubmit={saveFreeFireDetails} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input 
-                type="text" 
-                placeholder="Asli Free Fire UID (e.g. 24589631)" 
-                value={ffUid} 
-                onChange={(e) => setFfUid(e.target.value)}
-                className={`w-full border p-3 rounded-lg font-mono text-sm ${inputBg}`}
-                required
-              />
-              <input 
-                type="text" 
-                placeholder="In-Game Name (IGN)" 
-                value={ffName} 
-                onChange={(e) => setFfName(e.target.value)}
-                className={`w-full border p-3 rounded-lg text-sm ${inputBg}`}
-                required
-              />
-              <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-3 rounded-lg cursor-pointer transition text-sm">
-                Save & Lock UID 🔒🚀
-              </button>
-            </form>
-          </div>
-
-          {/* 📖 How to Play Shown Immediately After Google Login */}
-          <div className={`border ${cardBg} p-5 sm:p-6 rounded-2xl space-y-5`}>
-            <div>
-              <h2 className={`text-xl font-bold ${headingText}`}>📖 How to Play — Naye Players Ke Liye Complete Guide</h2>
-              <p className={`text-xs ${mutedText} mt-1`}>
-                Google login ke baad pehle apni asli Free Fire UID daalein, aur phir neeche diye gaye steps follow karein:
-              </p>
-            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein (Aapki Pehle Se Hai)</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Sabse pehle apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform dekhne ke baad ya match join karte waqt bhi apni UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti.
                 </p>
               </div>
 
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>2. Wallet Mein Paise Kaise Add Karein?</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  UID lock hone ke baad <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
+                  <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
                 </p>
               </div>
 
@@ -890,6 +874,36 @@ export default function Home() {
                 </p>
               </div>
             </div>
+
+            <div className={`pt-3 border-t ${borderDivider} flex flex-wrap justify-between items-center gap-3`}>
+              <button
+                type="button"
+                onClick={() => {
+                  setHasPassedIntroGuide(true);
+                  setShowUidModal(true);
+                }}
+                className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition ${tabInactive}`}
+              >
+                🔑 Abhi UID Daalein
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHasPassedIntroGuide(true)}
+                  className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition ${tabInactive}`}
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHasPassedIntroGuide(true)}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer transition shadow-md"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -898,14 +912,24 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen ${pageBg} p-4 transition-colors duration-200`}>
-      {/* 🔥 Clean Header with ID & Live Support Link Right Next to It */}
+      {/* 🔥 Clean Header with ID / Set UID & Live Support Link Right Next to It */}
       <header className={`flex flex-wrap justify-between items-center border-b ${borderDivider} pb-4 mb-6 gap-3`}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
           <div>
             <h1 className={`text-xl font-bold ${headingText}`}>BR Esports Arena</h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <p className={`text-xs ${mutedText}`}>ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
+              {userData?.freeFireUid ? (
+                <p className={`text-xs ${mutedText}`}>ID: {userData?.freeFireName} ({userData?.freeFireUid}) 🔒</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowUidModal(true)}
+                  className="text-xs bg-yellow-500/20 border border-yellow-500/60 text-yellow-400 hover:bg-yellow-500 hover:text-slate-950 font-bold px-2 py-0.5 rounded cursor-pointer transition"
+                >
+                  ⚠️ Asli FF UID Daalein
+                </button>
+              )}
               <a 
                 href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
                 target="_blank"
@@ -945,6 +969,63 @@ export default function Home() {
           </button>
         </div>
       </header>
+
+      {/* Optional UID Setup Modal (Accessible anytime later) */}
+      {showUidModal && userData && !userData.freeFireUid && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className={`max-w-md w-full border ${cardBg} p-6 rounded-2xl shadow-2xl space-y-4`}>
+            <div className="flex justify-between items-center">
+              <h2 className={`text-lg font-bold ${headingText}`}>🔑 Asli Free Fire UID Daalein</h2>
+              <button
+                type="button"
+                onClick={() => setShowUidModal(false)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${tabInactive}`}
+              >
+                ✕
+              </button>
+            </div>
+            <p className={`text-xs ${mutedText}`}>
+              Apni asli Free Fire UID daalein (jo aapki pehle se hai, 8 se 12 digits) aur In-Game Name (IGN):
+            </p>
+            <p className="text-[11px] text-red-500 font-semibold">
+              ⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!
+            </p>
+            <form onSubmit={saveFreeFireDetails} className="space-y-3">
+              <input 
+                type="text" 
+                placeholder="Asli Free Fire UID (e.g. 24589631)" 
+                value={ffUid} 
+                onChange={(e) => setFfUid(e.target.value)}
+                className={`w-full border p-3 rounded-lg font-mono text-sm ${inputBg}`}
+                required
+              />
+              <input 
+                type="text" 
+                placeholder="In-Game Name (IGN)" 
+                value={ffName} 
+                onChange={(e) => setFfName(e.target.value)}
+                className={`w-full border p-3 rounded-lg text-sm ${inputBg}`}
+                required
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUidModal(false)}
+                  className={`flex-1 py-2.5 rounded-lg text-xs font-bold cursor-pointer ${tabInactive}`}
+                >
+                  Baad Mein Daalenge
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded-lg text-xs cursor-pointer transition"
+                >
+                  Save & Lock UID 🔒
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 🔥 Clean Rules Section */}
       <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
@@ -1430,9 +1511,9 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
+                <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein (Aapki Pehle Se Hai)</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Google se login hote hi apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (jo aapki pehle se hai, 8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform explore karne ke baad ya match join karte waqt bhi apni UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
                 </p>
               </div>
 
