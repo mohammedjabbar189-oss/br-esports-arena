@@ -464,7 +464,7 @@ export default function Home() {
 
     const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
       const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
-      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(kickedPlayer.ffUid).trim();
       return !(sameAuth || sameFf);
     });
 
@@ -1010,18 +1010,16 @@ export default function Home() {
                     {isJoined ? (
                       <div className={`mt-3 border px-3 py-2 rounded text-xs font-mono space-y-1 ${subCardBg} border-green-700/50 text-green-500`}>
                         <p className={`font-bold ${headingText}`}>🎯 Your Room Credentials:</p>
-                        <p>
-                          Room ID:{" "}
-                          <span className={`${titleText} font-bold`}>
-                            {hasRoomId ? match.roomId : "Match se 10 minutes pehle aapko Room ID and Password milega"}
-                          </span>
-                        </p>
-                        <p>
-                          Password:{" "}
-                          <span className={`${titleText} font-bold`}>
-                            {hasRoomPass ? match.roomPass : "Match se 10 minutes pehle aapko Room ID and Password milega"}
-                          </span>
-                        </p>
+                        {hasRoomId && hasRoomPass ? (
+                          <>
+                            <p>Room ID: <span className={`${titleText} font-bold`}>{match.roomId}</span></p>
+                            <p>Password: <span className={`${titleText} font-bold`}>{match.roomPass}</span></p>
+                          </>
+                        ) : (
+                          <p className={`${titleText} font-sans font-medium`}>
+                            Match se 10 minutes pehle aapko Room ID and Password milega
+                          </p>
+                        )}
                       </div>
                     ) : isRemoved ? (
                       <div className={`mt-3 border px-3 py-1.5 rounded text-xs ${isDarkMode ? "bg-red-950/40 border-red-700/50 text-red-300" : "bg-red-50 border-red-300 text-red-700"}`}>
