@@ -319,7 +319,7 @@ export default function Home() {
         setFairPlayChecked(false);
         const userRef = doc(db, "users", currentUser.uid);
         
-        unsubscribeUser = onSnapshot(userRef, (userSnap) => {
+        unsubscribeUser = onSnapshot(userRef, async (userSnap) => {
           if (userSnap.exists()) {
             const data = userSnap.data();
             if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
@@ -328,11 +328,35 @@ export default function Home() {
             if (typeof data.bonusWallet !== 'number' || isNaN(data.bonusWallet)) {
               data.bonusWallet = 0;
             }
+
+            const patchUpdates = {};
             if (!data.refCode) {
               const newCode = generateReferralCode(currentUser.uid);
-              setDoc(userRef, { refCode: newCode }, { merge: true });
+              patchUpdates.refCode = newCode;
               data.refCode = newCode;
             }
+
+            // ✅ Purane UID-locked users ko ek baar ₹50 Bonus Wallet (Match Entry Only)
+            if (data.freeFireUid && !data.uidLockBonusGiven) {
+              patchUpdates.bonusWallet = increment(UID_LOCK_BONUS);
+              patchUpdates.uidLockBonusGiven = true;
+              patchUpdates.transactions = arrayUnion({
+                text: `Player Bonus (UID Verified) — Match Entry Only`,
+                amount: `+₹${UID_LOCK_BONUS} Bonus`,
+                date: formatDateTime(new Date())
+              });
+              data.bonusWallet = Number(data.bonusWallet || 0) + UID_LOCK_BONUS;
+              data.uidLockBonusGiven = true;
+            }
+
+            if (Object.keys(patchUpdates).length > 0) {
+              try {
+                await setDoc(userRef, patchUpdates, { merge: true });
+              } catch (err) {
+                console.error("Failed to apply user updates:", err);
+              }
+            }
+
             setUserData(data);
 
             const fairPlayDone = Boolean(data.fairPlayAccepted || data.freeFireUid);
