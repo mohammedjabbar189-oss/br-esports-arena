@@ -57,6 +57,9 @@ export default function Home() {
   const [fairPlayChecked, setFairPlayChecked] = useState(false);
   const [hasPassedIntroGuide, setHasPassedIntroGuide] = useState(false);
   const [showUidModal, setShowUidModal] = useState(false);
+
+  // Legal Modals: "terms" | "privacy" | null
+  const [legalModal, setLegalModal] = useState(null);
   
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
@@ -780,6 +783,88 @@ export default function Home() {
     }
   };
 
+  // 📜 Shared Terms & Conditions + Privacy Policy Modal Component
+  const renderLegalModal = () => {
+    if (!legalModal) return null;
+    const isTerms = legalModal === "terms";
+
+    return (
+      <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+        <div className={`max-w-2xl w-full border ${cardBg} p-6 rounded-2xl shadow-2xl space-y-4 max-h-[85vh] flex flex-col`}>
+          <div className={`flex justify-between items-center border-b ${borderDivider} pb-3`}>
+            <h2 className={`text-lg sm:text-xl font-extrabold ${headingText}`}>
+              {isTerms ? "📜 Terms & Conditions — BR Esports Arena" : "🔒 Privacy Policy — BR Esports Arena"}
+            </h2>
+            <button
+              type="button"
+              onClick={() => setLegalModal(null)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold cursor-pointer ${tabInactive}`}
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className={`overflow-y-auto pr-1 space-y-3 text-xs sm:text-sm leading-relaxed ${mutedText}`}>
+            {isTerms ? (
+              <>
+                <p>
+                  <strong className={titleText}>1. Skill-Based Platform:</strong> BR Esports Arena ek competitive esports tournament platform hai. Yeh koi gambling, betting, ya lottery platform nahi hai—matches ke results sirf players ki Free Fire gameplay skills par depend karte hain.
+                </p>
+                <p>
+                  <strong className={titleText}>2. Account & Free Fire UID:</strong> Har player ko apni asli Free Fire UID (8–12 digits) aur In-Game Name (IGN) dena zaroori hai. Ek baar lock hone ke baad UID khud se change nahi hogi; galat ya fake UID daalne par account suspend kiya ja sakta hai.
+                </p>
+                <p>
+                  <strong className={titleText}>3. Eligibility (Age & Local Laws):</strong> Paid matches sirf 18+ saal ke users aur unhi states/regions ke liye hain jahan local laws skill-based tournaments ki anumati dete hain.
+                </p>
+                <p>
+                  <strong className={titleText}>4. Fair Play & Anti-Cheat:</strong> Hack, panel, script, unauthorized emulator, ya solo match mein team-up karne par player ko match/platform se ban kiya jayega aur koi prize ya refund nahi diya jayega.
+                </p>
+                <p>
+                  <strong className={titleText}>5. Wallet, Deposit & Withdrawal:</strong> Deposit ke liye valid amount aur exact 12-digit UTR submit karna zaroori hai (fake/duplicate UTR par ban hoga). Minimum withdrawal ₹30 hai aur payout aapki di gayi valid UPI ID par bheja jata hai.
+                </p>
+                <p>
+                  <strong className={titleText}>6. Match Room & Refunds:</strong> Room ID aur Password match se 10 minutes pehle match card mein update hota hai. Agar match cancel hota hai toh entry fee wallet mein refund kar di jati hai.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  <strong className={titleText}>1. Information We Collect:</strong> Jab aap Google se login karte hain, hum aapka naam, email address, aur account ID lete hain. Tournament khelne ke liye hum aapki Free Fire UID, IGN, deposit ke waqt UTR number, aur withdrawal ke waqt UPI ID store karte hain.
+                </p>
+                <p>
+                  <strong className={titleText}>2. How We Use Your Data:</strong> Aapki information ka use sirf account login, match slots verify karne, Room ID/Password dene, winnings add karne, aur deposit/withdrawal requests process karne ke liye hota hai.
+                </p>
+                <p>
+                  <strong className={titleText}>3. Data Security & Third-Party Services:</strong> Hum aapka personal data kisi third-party ko sell ya rent nahi karte. Platform chalane ke liye hum trusted services jaise Google Firebase (Authentication & Database) aur Tawk.to (Live Support) ka use karte hain.
+                </p>
+                <p>
+                  <strong className={titleText}>4. Support & Data Queries:</strong> Apne account, UID update, ya data se judi kisi bhi madad ke liye aap app mein diye gaye Live Support button ke zariye humse contact kar sakte hain.
+                </p>
+              </>
+            )}
+          </div>
+
+          <div className={`pt-3 border-t ${borderDivider} flex justify-between items-center gap-2`}>
+            <button
+              type="button"
+              onClick={() => setLegalModal(isTerms ? "privacy" : "terms")}
+              className={`text-xs underline font-semibold cursor-pointer ${headingText}`}
+            >
+              {isTerms ? "Read Privacy Policy →" : "Read Terms & Conditions →"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setLegalModal(null)}
+              className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-5 py-2 rounded-lg text-xs cursor-pointer transition"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className={`min-h-screen ${pageBg} flex items-center justify-center`}>
@@ -791,6 +876,7 @@ export default function Home() {
   if (!user) {
     return (
       <main className={`min-h-screen ${pageBg} flex flex-col items-center justify-center p-4`}>
+        {renderLegalModal()}
         <div className={`max-w-md w-full border ${cardBg} p-8 rounded-2xl text-center shadow-2xl`}>
           <div className="flex justify-end mb-2">
             <button
@@ -817,6 +903,18 @@ export default function Home() {
             </svg>
             Continue with Google
           </button>
+
+          <p className={`text-[11px] ${subtleText} mt-4 leading-relaxed`}>
+            Continue karke aap hamare{" "}
+            <button type="button" onClick={() => setLegalModal("terms")} className={`${headingText} underline font-semibold cursor-pointer`}>
+              Terms & Conditions
+            </button>{" "}
+            aur{" "}
+            <button type="button" onClick={() => setLegalModal("privacy")} className={`${headingText} underline font-semibold cursor-pointer`}>
+              Privacy Policy
+            </button>{" "}
+            se sehmat hote hain.
+          </p>
         </div>
       </main>
     );
@@ -826,6 +924,7 @@ export default function Home() {
   if (userData && !userData.freeFireUid && !hasAcceptedFairPlayNotice) {
     return (
       <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
+        {renderLegalModal()}
         <div className={`max-w-xl w-full border ${cardBg} p-6 sm:p-8 rounded-2xl shadow-2xl space-y-5`}>
           <div className="flex justify-between items-center gap-2">
             <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/40 px-3 py-1 rounded-full font-bold">
@@ -877,7 +976,23 @@ export default function Home() {
               className="mt-0.5 w-4 h-4 accent-yellow-500 cursor-pointer shrink-0"
             />
             <span className={`text-xs sm:text-sm ${titleText}`}>
-              Main samajhta/samajhti hoon ki yeh koi gambling, betting ya jua platform nahi hai, balki ek skill-based esports tournament platform hai.
+              Main samajhta/samajhti hoon ki yeh koi gambling, betting ya jua platform nahi hai, balki ek skill-based esports tournament platform hai, aur main{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setLegalModal("terms"); }}
+                className={`${headingText} underline font-bold cursor-pointer`}
+              >
+                Terms & Conditions
+              </button>{" "}
+              aur{" "}
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); setLegalModal("privacy"); }}
+                className={`${headingText} underline font-bold cursor-pointer`}
+              >
+                Privacy Policy
+              </button>{" "}
+              se sehmat hoon.
             </span>
           </label>
 
@@ -900,6 +1015,7 @@ export default function Home() {
   if (userData && !userData.freeFireUid && !hasPassedIntroGuide) {
     return (
       <main className={`min-h-screen ${pageBg} py-8 px-4`}>
+        {renderLegalModal()}
         <div className="max-w-4xl mx-auto">
           <div className={`border ${cardBg} p-5 sm:p-6 rounded-2xl space-y-5 shadow-xl`}>
             <div className="flex flex-wrap justify-between items-start gap-3">
@@ -994,6 +1110,8 @@ export default function Home() {
 
   return (
     <main className={`min-h-screen ${pageBg} p-4 transition-colors duration-200`}>
+      {renderLegalModal()}
+
       {/* 🔥 Clean Header with ID / Set UID & Live Support Link Right Next to It */}
       <header className={`flex flex-wrap justify-between items-center border-b ${borderDivider} pb-4 mb-6 gap-3`}>
         <div className="flex items-center gap-3">
@@ -1989,9 +2107,26 @@ export default function Home() {
         <span className="text-sm">Live Support</span>
       </a>
 
-      {/* 📜 Terms & Conditions Footer Note */}
-      <footer className={`mt-12 py-6 border-t ${borderDivider} text-center text-xs ${mutedText} px-4`}>
-        <p className="mb-2">© 2026 BR Esports Arena. All rights reserved.</p>
+      {/* 📜 Terms & Conditions + Privacy Policy Footer */}
+      <footer className={`mt-12 py-6 border-t ${borderDivider} text-center text-xs ${mutedText} px-4 space-y-2`}>
+        <div className="flex justify-center items-center gap-4 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setLegalModal("terms")}
+            className={`${headingText} hover:underline font-semibold cursor-pointer`}
+          >
+            Terms & Conditions
+          </button>
+          <span className={subtleText}>•</span>
+          <button
+            type="button"
+            onClick={() => setLegalModal("privacy")}
+            className={`${headingText} hover:underline font-semibold cursor-pointer`}
+          >
+            Privacy Policy
+          </button>
+        </div>
+        <p>© 2026 BR Esports Arena. All rights reserved.</p>
         <p className={`max-w-xl mx-auto ${subtleText} leading-relaxed`}>
           <strong>Disclaimer:</strong> BR Esports Arena is an Esports Skill-Based Tournament Platform. 
           This is not a gambling, betting, or lottery app. All matches are purely based on player skills in Free Fire.
