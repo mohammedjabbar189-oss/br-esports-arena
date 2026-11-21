@@ -60,6 +60,7 @@ export default function Home() {
   const [prizePool, setPrizePool] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("48");
   const [tournaments, setTournaments] = useState([]);
+  const [winnersBoard, setWinnersBoard] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
 
@@ -191,6 +192,11 @@ export default function Home() {
     (a, b) => getCreatedAtTime(a.createdAt) - getCreatedAtTime(b.createdAt)
   );
 
+  // ✅ Descending order for winners scoreboard (latest win upar)
+  const sortedWinnersBoard = [...(winnersBoard || [])].sort(
+    (a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
+  );
+
   const sortRequestsList = (list) => {
     return list.sort((a, b) => {
       if (a.status === "Pending" && b.status !== "Pending") return -1;
@@ -205,6 +211,7 @@ export default function Home() {
   useEffect(() => {
     let unsubscribeUser = () => {};
     let unsubscribeTournaments = () => {};
+    let unsubscribeWinners = () => {};
     let unsubscribeRequests = () => {};
     let unsubscribeMyRequests = () => {};
 
@@ -269,10 +276,16 @@ export default function Home() {
       setTournaments(list);
     });
 
+    unsubscribeWinners = onSnapshot(collection(db, "winners_board"), (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setWinnersBoard(list);
+    });
+
     return () => {
       unsubscribeAuth();
       unsubscribeUser();
       unsubscribeTournaments();
+      unsubscribeWinners();
       unsubscribeRequests();
       if (unsubscribeMyRequests) unsubscribeMyRequests();
     };
@@ -508,8 +521,21 @@ export default function Home() {
         transactions: arrayUnion(winTx)
       });
 
+      await addDoc(collection(db, "winners_board"), {
+        playerUid: prizeWinnerUid,
+        ffName: winnerPlayer?.ffName || "Player",
+        ffUid: winnerPlayer?.ffUid || "",
+        matchTitle: selectedMatch?.title || "Tournament Match",
+        booyahAmount: parsedBooyah,
+        kills: parsedKills,
+        perKillRate: parsedPerKill,
+        killsPrize: killsTotal,
+        totalPrize: calculatedTotalPrize,
+        createdAt: new Date()
+      });
+
       alert(
-        `✅ ₹${calculatedTotalPrize} (${breakdownText}) winner${winnerPlayer?.ffName ? ` (${winnerPlayer.ffName})` : ""} ke wallet mein add ho gaya!`
+        `✅ ₹${calculatedTotalPrize} (${breakdownText}) winner${winnerPlayer?.ffName ? ` (${winnerPlayer.ffName})` : ""} ke wallet mein add ho gaya aur Scoreboard par update ho gaya!`
       );
       setKillsCount("0");
       setPrizeWinnerUid("");
@@ -855,6 +881,12 @@ export default function Home() {
           🏆 Tournaments
         </button>
         <button 
+          onClick={() => setActiveTab("scoreboard")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "scoreboard" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
+        >
+          🏅 Winners & Kills ({sortedWinnersBoard.length})
+        </button>
+        <button 
           onClick={() => setActiveTab("wallet")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
         >
@@ -952,6 +984,79 @@ export default function Home() {
               );
             })
           )}
+        </div>
+      )}
+
+      {activeTab === "scoreboard" && (
+        <div className="max-w-4xl mx-auto space-y-4">
+          <div className={`border p-5 rounded-xl ${cardBg}`}>
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+              <div>
+                <h2 className={`text-lg font-bold ${headingText}`}>🏅 Winners & Kills Scoreboard</h2>
+                <p className={`text-xs ${mutedText}`}>
+                  Recent match winners, unke kills, aur unko mili total prize amount ki live list.
+                </p>
+              </div>
+              <span className="text-xs bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 px-3 py-1 rounded-full font-bold">
+                Verified Payouts
+              </span>
+            </div>
+
+            {sortedWinnersBoard.length === 0 ? (
+              <div className={`text-center py-10 border rounded-xl ${subCardBg}`}>
+                <span className="text-3xl block mb-2">🏆</span>
+                <p className={`text-xs ${subtleText}`}>Abhi scoreboard par koi payout record nahi hai.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {sortedWinnersBoard.map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className={`p-3.5 rounded-xl border flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 ${subCardBg}`}
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${isDarkMode ? "bg-yellow-500/20 text-yellow-400" : "bg-amber-100 text-amber-800"}`}>
+                          #{idx + 1}
+                        </span>
+                        <span className={`text-sm font-bold ${titleText}`}>
+                          {item.ffName || "Player"}
+                        </span>
+                        {item.ffUid && (
+                          <span className={`text-[11px] font-mono ${mutedText}`}>
+                            (UID: {item.ffUid})
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs ${mutedText}`}>
+                        Match: <strong className={titleText}>{item.matchTitle || "Tournament"}</strong>
+                      </p>
+                      <div className="flex items-center gap-3 flex-wrap text-[11px]">
+                        <span className="text-blue-500 font-semibold">
+                          🔫 Kills: {Number(item.kills) || 0}
+                        </span>
+                        {(Number(item.booyahAmount) || 0) > 0 && (
+                          <span className={`${headingText} font-semibold`}>
+                            👑 Booyah: ₹{Number(item.booyahAmount) || 0}
+                          </span>
+                        )}
+                        {formatDateTime(item.createdAt) && (
+                          <span className={subtleText}>{formatDateTime(item.createdAt)}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="sm:text-right flex sm:block justify-between items-center border-t sm:border-t-0 border-slate-800/40 pt-2 sm:pt-0">
+                      <span className={`text-[11px] block ${mutedText}`}>Prize Won</span>
+                      <span className="text-lg font-extrabold text-emerald-500">
+                        +₹{Number(item.totalPrize) || 0}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
