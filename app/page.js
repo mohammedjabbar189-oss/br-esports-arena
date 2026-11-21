@@ -52,7 +52,9 @@ export default function Home() {
   const [showQuickGuide, setShowQuickGuide] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // Onboarding How-To-Play & Optional UID Modal States
+  // Onboarding Disclaimer, How-To-Play & Optional UID Modal States
+  const [hasAcceptedFairPlayNotice, setHasAcceptedFairPlayNotice] = useState(false);
+  const [fairPlayChecked, setFairPlayChecked] = useState(false);
   const [hasPassedIntroGuide, setHasPassedIntroGuide] = useState(false);
   const [showUidModal, setShowUidModal] = useState(false);
   
@@ -249,6 +251,8 @@ export default function Home() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        setHasAcceptedFairPlayNotice(false);
+        setFairPlayChecked(false);
         setHasPassedIntroGuide(false);
         const userRef = doc(db, "users", currentUser.uid);
         
@@ -262,6 +266,7 @@ export default function Home() {
             if (data.freeFireUid) {
               setFfUid(data.freeFireUid);
               setFfName(data.freeFireName || "");
+              setHasAcceptedFairPlayNotice(true);
               setHasPassedIntroGuide(true);
               setShowUidModal(false);
             }
@@ -299,6 +304,8 @@ export default function Home() {
       } else {
         setUser(null);
         setUserData(null);
+        setHasAcceptedFairPlayNotice(false);
+        setFairPlayChecked(false);
         setHasPassedIntroGuide(false);
         setShowUidModal(false);
         setWalletRequests([]);
@@ -364,6 +371,7 @@ export default function Home() {
     await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
     setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
     setShowUidModal(false);
+    setHasAcceptedFairPlayNotice(true);
     setHasPassedIntroGuide(true);
     alert("✅ Free Fire ID Successfully Locked & Saved!");
   };
@@ -814,7 +822,81 @@ export default function Home() {
     );
   }
 
-  // 📖 Immediately After Google Login: Show How to Play First with Skip / Next Button
+  // 🛡️ Step 0 After Google Login: Fair-Play & Skill Platform Notice (Checkbox + OK) Before How to Play
+  if (userData && !userData.freeFireUid && !hasAcceptedFairPlayNotice) {
+    return (
+      <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
+        <div className={`max-w-xl w-full border ${cardBg} p-6 sm:p-8 rounded-2xl shadow-2xl space-y-5`}>
+          <div className="flex justify-between items-center gap-2">
+            <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/40 px-3 py-1 rounded-full font-bold">
+              🛡️ Platform Notice
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition ${tabInactive}`}
+              >
+                {isDarkMode ? "☀️ Light" : "🌙 Dark"}
+              </button>
+              <button 
+                type="button"
+                onClick={handleLogout}
+                className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+              >
+                Logout
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <h2 className={`text-xl sm:text-2xl font-extrabold ${headingText}`}>
+              Skill-Based Esports Declaration
+            </h2>
+            <p className={`text-xs ${mutedText} mt-1`}>
+              Aage badhne se pehle kripya is zaroori jaankari ko dhyan se padhein:
+            </p>
+          </div>
+
+          <div className={`border p-4 rounded-xl space-y-2.5 text-xs sm:text-sm leading-relaxed ${subCardBg}`}>
+            <p className={`${titleText} font-semibold`}>
+              BR Esports Arena koi <span className="text-yellow-400 font-bold">gambling</span>,{" "}
+              <span className="text-yellow-400 font-bold">betting</span>, ya{" "}
+              <span className="text-yellow-400 font-bold">jua (satta / lottery)</span> platform nahi hai.
+            </p>
+            <p className={mutedText}>
+              Yeh ek competitive <strong className={titleText}>Esports Skill-Based Tournament</strong> platform hai, jahan matches ka result kisi kismat ya chance par nahi balki players ki real gameplay skill aur performance par aadharit hota hai.
+            </p>
+          </div>
+
+          <label className={`flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer select-none ${subCardBg}`}>
+            <input
+              type="checkbox"
+              checked={fairPlayChecked}
+              onChange={(e) => setFairPlayChecked(e.target.checked)}
+              className="mt-0.5 w-4 h-4 accent-yellow-500 cursor-pointer shrink-0"
+            />
+            <span className={`text-xs sm:text-sm ${titleText}`}>
+              Main samajhta/samajhti hoon ki yeh koi gambling, betting ya jua platform nahi hai, balki ek skill-based esports tournament platform hai.
+            </span>
+          </label>
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              disabled={!fairPlayChecked}
+              onClick={() => setHasAcceptedFairPlayNotice(true)}
+              className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-extrabold px-8 py-3 rounded-xl text-sm cursor-pointer transition shadow-md"
+            >
+              OK →
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  // 📖 After Fair-Play OK: Show How to Play First with Skip / Next Button
   if (userData && !userData.freeFireUid && !hasPassedIntroGuide) {
     return (
       <main className={`min-h-screen ${pageBg} py-8 px-4`}>
