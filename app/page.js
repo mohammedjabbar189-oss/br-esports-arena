@@ -989,6 +989,9 @@ export default function Home() {
               const joinedCount = match.players?.length || 0;
               const isFull = joinedCount >= slotLimit;
 
+              const hasRoomId = match.roomId && match.roomId !== "Pending";
+              const hasRoomPass = match.roomPass && match.roomPass !== "Pending";
+
               return (
                 <div key={match.id} className={`border p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 ${cardBg}`}>
                   <div>
@@ -1007,8 +1010,18 @@ export default function Home() {
                     {isJoined ? (
                       <div className={`mt-3 border px-3 py-2 rounded text-xs font-mono space-y-1 ${subCardBg} border-green-700/50 text-green-500`}>
                         <p className={`font-bold ${headingText}`}>🎯 Your Room Credentials:</p>
-                        <p>Room ID: <span className={`${titleText} font-bold`}>{match.roomId || "Pending (10 mins before match)"}</span></p>
-                        <p>Password: <span className={`${titleText} font-bold`}>{match.roomPass || "Pending"}</span></p>
+                        <p>
+                          Room ID:{" "}
+                          <span className={`${titleText} font-bold`}>
+                            {hasRoomId ? match.roomId : "Match se 10 minutes pehle aapko Room ID and Password milega"}
+                          </span>
+                        </p>
+                        <p>
+                          Password:{" "}
+                          <span className={`${titleText} font-bold`}>
+                            {hasRoomPass ? match.roomPass : "Match se 10 minutes pehle aapko Room ID and Password milega"}
+                          </span>
+                        </p>
                       </div>
                     ) : isRemoved ? (
                       <div className={`mt-3 border px-3 py-1.5 rounded text-xs ${isDarkMode ? "bg-red-950/40 border-red-700/50 text-red-300" : "bg-red-50 border-red-300 text-red-700"}`}>
@@ -1384,7 +1397,7 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>3. Match Join & Room ID / Password</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  <strong className={titleText}>🏆 Tournaments</strong> tab mein apna match chunein aur <strong className={titleText}>Join Now</strong> dabayein. Join hone ke baad usi match card ke andar <strong className={titleText}>Room ID & Password</strong> dikh jayega (match se pehle update hota hai).
+                  <strong className={titleText}>🏆 Tournaments</strong> tab mein apna match chunein aur <strong className={titleText}>Join Now</strong> dabayein. Join hoti hi match card ke andar credentials section dikhega aur <strong className={titleText}>match se 10 minutes pehle aapko Room ID and Password milega</strong>.
                 </p>
               </div>
 
