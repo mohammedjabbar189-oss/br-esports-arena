@@ -47,6 +47,7 @@ export default function Home() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
+  const [adminSection, setAdminSection] = useState("matches");
   const [isDarkMode, setIsDarkMode] = useState(true);
   
   const [ffUid, setFfUid] = useState("");
@@ -1134,46 +1135,49 @@ export default function Home() {
       )}
 
       {activeTab === "admin" && isAdmin && (
-        <div className="max-w-6xl mx-auto space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className={`border border-yellow-500/50 p-6 rounded-xl h-fit ${cardBg}`}>
-              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>🔔 Pending Payment Requests</h2>
-              {walletRequests.length === 0 ? (
-                <p className={`text-xs ${subtleText} py-4`}>Koi pending request nahi hai.</p>
-              ) : (
-                <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                  {walletRequests.map(req => {
-                    const reqDate = formatDateTime(req.createdAt);
-                    return (
-                      <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
-                        <div className="flex justify-between">
-                          <span className={`font-bold ${headingText}`}>{req.userName} ({req.email})</span>
-                          <span className={`font-bold ${req.type === 'ADD' ? 'text-green-500' : 'text-blue-500'}`}>
-                            {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
-                          </span>
-                        </div>
-                        {req.type === 'ADD' ? (
-                          <p className={`${mutedText} font-mono`}>UTR: {req.utr}</p>
-                        ) : (
-                          <p className={`${mutedText} font-mono`}>UPI: {req.upiId}</p>
-                        )}
-                        {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                            Approve
-                          </button>
-                          <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                            Reject
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+        <div className="max-w-6xl mx-auto space-y-5">
+          {/* ⚡ Quick Admin Sub-Tabs so everything isn't stacked in one long scroll */}
+          <div className={`flex flex-wrap gap-2 p-2 rounded-xl border ${subCardBg}`}>
+            <button
+              type="button"
+              onClick={() => setAdminSection("matches")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
+                adminSection === "matches" ? "bg-yellow-500 text-slate-950" : tabInactive
+              }`}
+            >
+              🎮 Create & Room
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminSection("players")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
+                adminSection === "players" ? "bg-yellow-500 text-slate-950" : tabInactive
+              }`}
+            >
+              👥 Players ({sortedTournaments.reduce((acc, m) => acc + (m.players?.length || 0), 0)})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminSection("payouts")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
+                adminSection === "payouts" ? "bg-yellow-500 text-slate-950" : tabInactive
+              }`}
+            >
+              🏆 Prize & Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminSection("requests")}
+              className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
+                adminSection === "requests" ? "bg-yellow-500 text-slate-950" : tabInactive
+              }`}
+            >
+              🔔 Requests ({walletRequests.length})
+            </button>
+          </div>
 
-            <div className="space-y-6">
+          {adminSection === "matches" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className={`border p-6 rounded-xl ${cardBg}`}>
                 <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Create New Tournament</h2>
                 <form onSubmit={handleCreateMatch} className="space-y-3">
@@ -1193,23 +1197,25 @@ export default function Home() {
                     className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required 
                   />
-                  <input 
-                    type="number" 
-                    placeholder="Entry Fee (0 for Free)" 
-                    value={entryFee} 
-                    onChange={(e) => setEntryFee(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                    required 
-                  />
-                  <input 
-                    type="number" 
-                    min="2"
-                    placeholder="Max Players (e.g. 10 or 48)" 
-                    value={maxPlayers} 
-                    onChange={(e) => setMaxPlayers(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                    required 
-                  />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input 
+                      type="number" 
+                      placeholder="Entry Fee (0 for Free)" 
+                      value={entryFee} 
+                      onChange={(e) => setEntryFee(e.target.value)}
+                      className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                      required 
+                    />
+                    <input 
+                      type="number" 
+                      min="2"
+                      placeholder="Max Players (e.g. 10 or 48)" 
+                      value={maxPlayers} 
+                      onChange={(e) => setMaxPlayers(e.target.value)}
+                      className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                      required 
+                    />
+                  </div>
                   <input 
                     type="text" 
                     placeholder="Prize Pool (e.g. ₹300)" 
@@ -1224,7 +1230,7 @@ export default function Home() {
                 </form>
               </div>
 
-              <div className={`border p-6 rounded-xl ${cardBg}`}>
+              <div className={`border p-6 rounded-xl h-fit ${cardBg}`}>
                 <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Update Room ID & Password</h2>
                 <form onSubmit={handleUpdateRoom} className="space-y-3">
                   <select 
@@ -1259,63 +1265,69 @@ export default function Home() {
                   </button>
                 </form>
               </div>
+            </div>
+          )}
 
-              <div className={`border p-6 rounded-xl ${cardBg}`}>
-                <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players Verification List</h2>
-                <div className="space-y-3 max-h-72 overflow-y-auto">
-                  {sortedTournaments.length === 0 ? (
-                    <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
-                  ) : (
-                    sortedTournaments.map(m => (
-                      <div key={m.id} className={`p-3 rounded-lg border space-y-2 ${subCardBg}`}>
-                        <p className={`text-xs font-bold ${headingText}`}>
-                          {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
-                        </p>
-                        {(!m.players || m.players.length === 0) ? (
-                          <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
-                        ) : (
-                          <div className="space-y-1">
-                            {m.players.map((p, i) => (
-                              <div key={i} className={`flex justify-between items-center gap-2 text-[11px] font-mono px-2 py-1 rounded border ${cardBg}`}>
-                                <span className={`truncate ${titleText}`}>{i+1}. {p.ffName}</span>
-                                <div className="flex items-center gap-2 shrink-0">
-                                  <span className="text-green-500">UID: {p.ffUid}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemovePlayerFromMatch(m.id, p)}
-                                    className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
-                                  >
-                                    Remove
-                                  </button>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {m.kickedPlayers && m.kickedPlayers.length > 0 && (
-                          <div className={`pt-2 border-t ${borderDivider} space-y-1`}>
-                            <p className="text-[10px] font-bold text-red-500">🚫 Removed / Blocked From Rejoin:</p>
-                            {m.kickedPlayers.map((k, kIdx) => (
-                              <div key={kIdx} className={`flex justify-between items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border ${isDarkMode ? "text-slate-400 bg-red-950/20 border-red-900/40" : "text-red-800 bg-red-50 border-red-200"}`}>
-                                <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
+          {adminSection === "players" && (
+            <div className={`border p-6 rounded-xl ${cardBg}`}>
+              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players Verification List</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {sortedTournaments.length === 0 ? (
+                  <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
+                ) : (
+                  sortedTournaments.map(m => (
+                    <div key={m.id} className={`p-3 rounded-lg border space-y-2 h-fit ${subCardBg}`}>
+                      <p className={`text-xs font-bold ${headingText}`}>
+                        {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
+                      </p>
+                      {(!m.players || m.players.length === 0) ? (
+                        <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {m.players.map((p, i) => (
+                            <div key={i} className={`flex justify-between items-center gap-2 text-[11px] font-mono px-2 py-1 rounded border ${cardBg}`}>
+                              <span className={`truncate ${titleText}`}>{i+1}. {p.ffName}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-green-500">UID: {p.ffUid}</span>
                                 <button
                                   type="button"
-                                  onClick={() => handleAllowBackPlayer(m.id, k)}
-                                  className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-sans font-bold cursor-pointer shrink-0"
+                                  onClick={() => handleRemovePlayerFromMatch(m.id, p)}
+                                  className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
                                 >
-                                  Allow Back
+                                  Remove
                                 </button>
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
 
+                      {m.kickedPlayers && m.kickedPlayers.length > 0 && (
+                        <div className={`pt-2 border-t ${borderDivider} space-y-1`}>
+                          <p className="text-[10px] font-bold text-red-500">🚫 Removed / Blocked From Rejoin:</p>
+                          {m.kickedPlayers.map((k, kIdx) => (
+                            <div key={kIdx} className={`flex justify-between items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border ${isDarkMode ? "text-slate-400 bg-red-950/20 border-red-900/40" : "text-red-800 bg-red-50 border-red-200"}`}>
+                              <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
+                              <button
+                                type="button"
+                                onClick={() => handleAllowBackPlayer(m.id, k)}
+                                className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-sans font-bold cursor-pointer shrink-0"
+                              >
+                                Allow Back
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {adminSection === "payouts" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className={`border border-emerald-700/50 p-6 rounded-xl ${cardBg}`}>
                 <h2 className="text-lg font-bold mb-2 text-emerald-500">🏆 Send Winner Prize (Auto Calculator)</h2>
                 <p className={`text-xs ${mutedText} mb-3`}>
@@ -1406,7 +1418,7 @@ export default function Home() {
                 </form>
               </div>
 
-              <div className={`border border-red-900/50 p-6 rounded-xl ${cardBg}`}>
+              <div className={`border border-red-900/50 p-6 rounded-xl h-fit ${cardBg}`}>
                 <h2 className="text-lg font-bold mb-2 text-red-500">Cancel Match & Refund</h2>
                 <form onSubmit={handleCancelAndRefundMatch} className="space-y-3">
                   <select 
@@ -1426,7 +1438,46 @@ export default function Home() {
                 </form>
               </div>
             </div>
-          </div>
+          )}
+
+          {adminSection === "requests" && (
+            <div className={`border border-yellow-500/50 p-6 rounded-xl ${cardBg}`}>
+              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>🔔 Pending Payment Requests</h2>
+              {walletRequests.length === 0 ? (
+                <p className={`text-xs ${subtleText} py-4`}>Koi pending request nahi hai.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {walletRequests.map(req => {
+                    const reqDate = formatDateTime(req.createdAt);
+                    return (
+                      <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
+                        <div className="flex justify-between gap-2">
+                          <span className={`font-bold ${headingText} truncate`}>{req.userName} ({req.email})</span>
+                          <span className={`font-bold shrink-0 ${req.type === 'ADD' ? 'text-green-500' : 'text-blue-500'}`}>
+                            {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
+                          </span>
+                        </div>
+                        {req.type === 'ADD' ? (
+                          <p className={`${mutedText} font-mono`}>UTR: {req.utr}</p>
+                        ) : (
+                          <p className={`${mutedText} font-mono`}>UPI: {req.upiId}</p>
+                        )}
+                        {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                            Approve
+                          </button>
+                          <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
