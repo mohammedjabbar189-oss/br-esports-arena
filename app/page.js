@@ -51,6 +51,13 @@ const generateReferralCode = (uid = "") => {
   return `BR${prefix}${randomPart}`;
 };
 
+const normalizeMatchStatus = (status) => {
+  const clean = String(status || "").trim().toLowerCase();
+  if (clean === "live") return "Live";
+  if (clean === "completed" || clean === "finished" || clean === "ended") return "Completed";
+  return "Upcoming";
+};
+
 export default function Home() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -60,6 +67,12 @@ export default function Home() {
   const [walletHistoryTab, setWalletHistoryTab] = useState("transactions");
   const [showQuickGuide, setShowQuickGuide] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
+
+  // 🔍 Match Filters & Search States
+  const [feeFilter, setFeeFilter] = useState("ALL"); // "ALL" | "FREE" | "PAID"
+  const [statusFilter, setStatusFilter] = useState("ACTIVE_ALL"); // "ACTIVE_ALL" | "Upcoming" | "Live" | "Completed"
+  const [matchSearch, setMatchSearch] = useState("");
+  const [copiedKey, setCopiedKey] = useState("");
 
   // Onboarding Disclaimer, How-To-Play & Optional UID Modal States
   const [hasAcceptedFairPlayNotice, setHasAcceptedFairPlayNotice] = useState(false);
@@ -84,6 +97,7 @@ export default function Home() {
   const [entryFee, setEntryFee] = useState("");
   const [prizePool, setPrizePool] = useState("");
   const [maxPlayers, setMaxPlayers] = useState("48");
+  const [newMatchStatus, setNewMatchStatus] = useState("Upcoming");
   const [tournaments, setTournaments] = useState([]);
   const [winnersBoard, setWinnersBoard] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
@@ -131,6 +145,20 @@ export default function Home() {
     ? "bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800"
     : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200";
   const borderDivider = isDarkMode ? "border-slate-800" : "border-slate-300";
+
+  // 📋 One-Click Copy Helper for Room ID / Password
+  const handleCopyCredential = async (value, keyId, label) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(String(value));
+      setCopiedKey(keyId);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === keyId ? "" : prev));
+      }, 2000);
+    } catch {
+      alert(`📋 ${label}: ${value}`);
+    }
+  };
 
   // Load saved theme preference & capture ?ref=CODE from URL
   useEffect(() => {
@@ -264,6 +292,30 @@ export default function Home() {
   const sortedTournaments = [...(tournaments || [])].sort(
     (a, b) => getCreatedAtTime(a.createdAt) - getCreatedAtTime(b.createdAt)
   );
+
+  // 🔍 Filtered Tournaments based on Fee Filter, Status Filter & Search Query
+  const filteredTournaments = sortedTournaments.filter((match) => {
+    const currentStatus = normalizeMatchStatus(match.status);
+    const fee = Number(match.entryFee) || 0;
+
+    if (statusFilter === "ACTIVE_ALL" && currentStatus === "Completed") {
+      return false;
+    }
+    if (statusFilter !== "ACTIVE_ALL" && currentStatus !== statusFilter) {
+      return false;
+    }
+
+    if (feeFilter === "FREE" && fee > 0) return false;
+    if (feeFilter === "PAID" && fee <= 0) return false;
+
+    const qText = matchSearch.trim().toLowerCase();
+    if (qText) {
+      const hay = `${match.title || ""} ${match.timing || ""} ${match.prizePool || ""} ${fee === 0 ? "free" : `₹${fee}`}`.toLowerCase();
+      if (!hay.includes(qText)) return false;
+    }
+
+    return true;
+  });
 
   // ✅ Descending order for winners scoreboard (latest win upar)
   const sortedWinnersBoard = [...(winnersBoard || [])].sort(
@@ -667,6 +719,7 @@ export default function Home() {
     e.preventDefault();
     if (!isAdmin) return alert("Unauthorized!");
     const parsedMaxPlayers = Math.max(2, Number(maxPlayers) || 48);
+    const initialStatus = normalizeMatchStatus(newMatchStatus);
     await addDoc(collection(db, "tournaments"), {
       title: matchTitle,
       timing: matchTime,
@@ -677,7 +730,7 @@ export default function Home() {
       roomPass: "Pending",
       players: [],
       kickedPlayers: [],
-      status: "Active",
+      status: initialStatus,
       createdAt: new Date()
     });
     alert("Match Live Ho Gaya!");
@@ -686,7 +739,22 @@ export default function Home() {
     setEntryFee("");
     setPrizePool("");
     setMaxPlayers("48");
+    setNewMatchStatus("Upcoming");
     setActiveTab("tournaments");
+  };
+
+  // 🔄 Admin Match Status Update (Upcoming / Live / Completed)
+  const handleChangeMatchStatus = async (matchId, nextStatus) => {
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!matchId) return;
+    const cleanStatus = normalizeMatchStatus(nextStatus);
+    try {
+      await updateDoc(doc(db, "tournaments", matchId), {
+        status: cleanStatus
+      });
+    } catch (error) {
+      alert("Status update karne mein error aaya: " + error.message);
+    }
   };
 
   const handleUpdateRoom = async (e) => {
@@ -935,6 +1003,10 @@ export default function Home() {
     const matchRef = doc(db, "tournaments", match.id);
     const freshSnap = await getDoc(matchRef);
     const freshMatch = freshSnap.exists() ? freshSnap.data() : match;
+
+    if (normalizeMatchStatus(freshMatch.status) === "Completed") {
+      return alert("Yeh match complete ho chuka hai!");
+    }
 
     if (isPlayerKickedFromMatch(freshMatch, user.uid, userData.freeFireUid)) {
       return alert("⚠️ Aapko is match se remove/block kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.");
@@ -1612,13 +1684,82 @@ export default function Home() {
             </div>
           )}
 
-          {sortedTournaments.length === 0 ? (
+          {/* 🔍 Match Filters & Search Bar */}
+          <div className={`border p-4 rounded-xl space-y-3 ${cardBg}`}>
+            <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs font-bold ${mutedText}`}>Entry:</span>
+                {[
+                  { id: "ALL", label: "All Matches" },
+                  { id: "FREE", label: "🆓 Free" },
+                  { id: "PAID", label: "💰 Paid" },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setFeeFilter(item.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                      feeFilter === item.id ? "bg-yellow-500 text-slate-950" : tabInactive
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`text-xs font-bold ${mutedText}`}>Status:</span>
+                {[
+                  { id: "ACTIVE_ALL", label: "Active" },
+                  { id: "Upcoming", label: "⏳ Upcoming" },
+                  { id: "Live", label: "🔴 Live" },
+                  { id: "Completed", label: "✅ Completed" },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    type="button"
+                    onClick={() => setStatusFilter(st.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                      statusFilter === st.id ? "bg-yellow-500 text-slate-950" : tabInactive
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="🔍 Match title, timing (e.g. 8:30 PM), ya rate se search karein..."
+                value={matchSearch}
+                onChange={(e) => setMatchSearch(e.target.value)}
+                className={`w-full border p-2.5 rounded-lg text-xs sm:text-sm ${inputBg}`}
+              />
+              {(matchSearch || feeFilter !== "ALL" || statusFilter !== "ACTIVE_ALL") && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMatchSearch("");
+                    setFeeFilter("ALL");
+                    setStatusFilter("ACTIVE_ALL");
+                  }}
+                  className={`px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer shrink-0 transition ${tabInactive}`}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {filteredTournaments.length === 0 ? (
             <div className={`text-center py-12 border rounded-xl ${cardBg}`}>
               <span className="text-4xl mb-2 block">🎮</span>
-              <p className={mutedText}>Filhal koi match active nahi hai.</p>
+              <p className={mutedText}>Is filter ya search ke mutabik koi match nahi mila.</p>
             </div>
           ) : (
-            sortedTournaments.map((match) => {
+            filteredTournaments.map((match) => {
               const isJoined = match.players?.some(
                 (p) =>
                   p.uid === user.uid ||
@@ -1628,15 +1769,27 @@ export default function Home() {
               const slotLimit = Number(match.maxPlayers) || 48;
               const joinedCount = match.players?.length || 0;
               const isFull = joinedCount >= slotLimit;
+              const matchStatus = normalizeMatchStatus(match.status);
+              const isCompleted = matchStatus === "Completed";
 
               const hasRoomId = match.roomId && match.roomId !== "Pending";
               const hasRoomPass = match.roomPass && match.roomPass !== "Pending";
+
+              const statusBadgeClass =
+                matchStatus === "Live"
+                  ? "bg-red-500/20 text-red-500 border border-red-500/40"
+                  : matchStatus === "Completed"
+                  ? "bg-slate-500/20 text-slate-400 border border-slate-500/40"
+                  : "bg-amber-500/20 text-amber-400 border border-amber-500/40";
 
               return (
                 <div key={match.id} className={`border p-5 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 ${cardBg}`}>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs bg-green-500/20 text-green-500 px-2 py-0.5 rounded font-bold uppercase">Solo • Bermuda</span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-bold ${statusBadgeClass}`}>
+                        {matchStatus === "Live" ? "🔴 Live" : matchStatus === "Completed" ? "✅ Completed" : "⏳ Upcoming"}
+                      </span>
                       {match.timing && (
                         <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded font-semibold">
                           ⏰ {match.timing}
@@ -1648,12 +1801,30 @@ export default function Home() {
                     <p className={`text-xs ${mutedText} mt-1`}>Players Joined: {joinedCount} / {slotLimit}</p>
                     
                     {isJoined ? (
-                      <div className={`mt-3 border px-3 py-2 rounded text-xs font-mono space-y-1 ${subCardBg} border-green-700/50 text-green-500`}>
+                      <div className={`mt-3 border px-3 py-2.5 rounded-lg text-xs font-mono space-y-1.5 ${subCardBg} border-green-700/50 text-green-500`}>
                         <p className={`font-bold ${headingText}`}>🎯 Your Room Credentials:</p>
                         {hasRoomId && hasRoomPass ? (
                           <>
-                            <p>Room ID: <span className={`${titleText} font-bold`}>{match.roomId}</span></p>
-                            <p>Password: <span className={`${titleText} font-bold`}>{match.roomPass}</span></p>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p>Room ID: <span className={`${titleText} font-bold`}>{match.roomId}</span></p>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCredential(match.roomId, `${match.id}-id`, "Room ID")}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-sans font-bold text-[11px] px-2.5 py-1 rounded cursor-pointer transition"
+                              >
+                                {copiedKey === `${match.id}-id` ? "✅ Copied ID" : "📋 Copy ID"}
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <p>Password: <span className={`${titleText} font-bold`}>{match.roomPass}</span></p>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyCredential(match.roomPass, `${match.id}-pass`, "Room Password")}
+                                className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-sans font-bold text-[11px] px-2.5 py-1 rounded cursor-pointer transition"
+                              >
+                                {copiedKey === `${match.id}-pass` ? "✅ Copied Pass" : "📋 Copy Pass"}
+                              </button>
+                            </div>
                           </>
                         ) : (
                           <p className={`${titleText} font-sans font-medium`}>
@@ -1680,6 +1851,10 @@ export default function Home() {
                     {isJoined ? (
                       <span className="bg-green-600/20 border border-green-600 text-green-500 font-bold px-4 py-1.5 rounded-lg text-sm">
                         ✅ Joined
+                      </span>
+                    ) : isCompleted ? (
+                      <span className="bg-slate-600/20 border border-slate-500 text-slate-400 font-bold px-4 py-1.5 rounded-lg text-sm">
+                        Completed
                       </span>
                     ) : isRemoved ? (
                       <span className="bg-red-600/20 border border-red-600 text-red-500 font-bold px-4 py-1.5 rounded-lg text-sm">
@@ -2224,56 +2399,97 @@ export default function Home() {
 
           {adminSection === "matches" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className={`border p-6 rounded-xl ${cardBg}`}>
-                <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Create New Tournament</h2>
-                <form onSubmit={handleCreateMatch} className="space-y-3">
-                  <input 
-                    type="text" 
-                    placeholder="Match Title (e.g. Solo Bermuda)" 
-                    value={matchTitle} 
-                    onChange={(e) => setMatchTitle(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                    required 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Match Timing (e.g. Today, 8:30 PM)" 
-                    value={matchTime} 
-                    onChange={(e) => setMatchTime(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                    required 
-                  />
-                  <div className="grid grid-cols-2 gap-3">
+              <div className={`border p-6 rounded-xl space-y-5 ${cardBg}`}>
+                <div>
+                  <h2 className={`text-lg font-bold mb-4 ${headingText}`}>Create New Tournament</h2>
+                  <form onSubmit={handleCreateMatch} className="space-y-3">
                     <input 
-                      type="number" 
-                      placeholder="Entry Fee (0 for Free)" 
-                      value={entryFee} 
-                      onChange={(e) => setEntryFee(e.target.value)}
+                      type="text" 
+                      placeholder="Match Title (e.g. Solo Bermuda)" 
+                      value={matchTitle} 
+                      onChange={(e) => setMatchTitle(e.target.value)}
                       className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       required 
                     />
                     <input 
-                      type="number" 
-                      min="2"
-                      placeholder="Max Players (e.g. 10 or 48)" 
-                      value={maxPlayers} 
-                      onChange={(e) => setMaxPlayers(e.target.value)}
+                      type="text" 
+                      placeholder="Match Timing (e.g. Today, 8:30 PM)" 
+                      value={matchTime} 
+                      onChange={(e) => setMatchTime(e.target.value)}
                       className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       required 
                     />
-                  </div>
-                  <input 
-                    type="text" 
-                    placeholder="Per Kill Rate (e.g. ₹10 / Kill)" 
-                    value={prizePool} 
-                    onChange={(e) => setPrizePool(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                    required 
-                  />
-                  <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
-                    Publish Match
-                  </button>
-                </form>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input 
+                        type="number" 
+                        placeholder="Entry Fee (0 for Free)" 
+                        value={entryFee} 
+                        onChange={(e) => setEntryFee(e.target.value)}
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                        required 
+                      />
+                      <input 
+                        type="number" 
+                        min="2"
+                        placeholder="Max Players (e.g. 10 or 48)" 
+                        value={maxPlayers} 
+                        onChange={(e) => setMaxPlayers(e.target.value)}
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                        required 
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <input 
+                        type="text" 
+                        placeholder="Per Kill Rate (e.g. ₹10 / Kill)" 
+                        value={prizePool} 
+                        onChange={(e) => setPrizePool(e.target.value)}
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                        required 
+                      />
+                      <select
+                        value={newMatchStatus}
+                        onChange={(e) => setNewMatchStatus(e.target.value)}
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                      >
+                        <option value="Upcoming">Status: Upcoming</option>
+                        <option value="Live">Status: Live</option>
+                        <option value="Completed">Status: Completed</option>
+                      </select>
+                    </div>
+                    <button type="submit" className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold py-2.5 rounded cursor-pointer">
+                      Publish Match
+                    </button>
+                  </form>
+                </div>
+
+                {/* 🔄 Manage Existing Match Status (Upcoming / Live / Completed) */}
+                <div className={`pt-4 border-t ${borderDivider} space-y-2.5`}>
+                  <h3 className={`text-sm font-bold ${headingText}`}>🔄 Match Status Control (Upcoming / Live / Completed)</h3>
+                  {sortedTournaments.length === 0 ? (
+                    <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {sortedTournaments.map((m) => (
+                        <div key={m.id} className={`p-2.5 rounded-lg border flex items-center justify-between gap-2 text-xs ${subCardBg}`}>
+                          <div className="min-w-0">
+                            <p className={`font-bold truncate ${titleText}`}>{m.title}</p>
+                            <p className={`text-[10px] ${mutedText}`}>{m.timing} • {Number(m.entryFee) === 0 ? "FREE" : `₹${m.entryFee}`}</p>
+                          </div>
+                          <select
+                            value={normalizeMatchStatus(m.status)}
+                            onChange={(e) => handleChangeMatchStatus(m.id, e.target.value)}
+                            className={`border px-2 py-1 rounded text-xs font-bold cursor-pointer shrink-0 ${inputBg}`}
+                          >
+                            <option value="Upcoming">⏳ Upcoming</option>
+                            <option value="Live">🔴 Live</option>
+                            <option value="Completed">✅ Completed</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className={`border p-6 rounded-xl h-fit ${cardBg}`}>
