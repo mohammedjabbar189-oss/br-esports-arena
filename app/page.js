@@ -48,6 +48,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   const [adminSection, setAdminSection] = useState("matches");
+  const [walletHistoryTab, setWalletHistoryTab] = useState("transactions");
   const [isDarkMode, setIsDarkMode] = useState(true);
   
   const [ffUid, setFfUid] = useState("");
@@ -462,7 +463,7 @@ export default function Home() {
 
     const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
       const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
-      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(kickedPlayer.ffUid).trim();
       return !(sameAuth || sameFf);
     });
 
@@ -1106,64 +1107,67 @@ export default function Home() {
       )}
 
       {activeTab === "wallet" && (
-        <div className="max-w-4xl mx-auto space-y-6">
-          <div className={`border p-6 rounded-xl ${cardBg}`}>
-            <div className={`flex justify-between items-center p-4 rounded-xl border mb-5 ${subCardBg}`}>
-              <span className={`text-sm ${mutedText}`}>Available Balance</span>
-              <span className="text-2xl font-extrabold text-green-500">₹{userData?.wallet ?? 0}</span>
-            </div>
-
-            <div className={`grid grid-cols-2 gap-2 mb-6 p-1 rounded-lg border ${subCardBg}`}>
-              <button 
-                onClick={() => setWalletMode("add")}
-                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : mutedText}`}
-              >
-                ➕ Add Money
-              </button>
-              <button 
-                onClick={() => setWalletMode("withdraw")}
-                className={`py-2 rounded-md text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : mutedText}`}
-              >
-                💸 Withdraw
-              </button>
+        <div className="max-w-5xl mx-auto space-y-5">
+          {/* Top Balance + Mode Switch */}
+          <div className={`border p-4 sm:p-5 rounded-xl ${cardBg}`}>
+            <div className={`flex flex-wrap justify-between items-center gap-3 p-3.5 rounded-xl border mb-4 ${subCardBg}`}>
+              <div>
+                <span className={`text-xs block ${mutedText}`}>Available Balance</span>
+                <span className="text-2xl font-extrabold text-green-500">₹{userData?.wallet ?? 0}</span>
+              </div>
+              <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-lg border w-full sm:w-auto ${cardBg}`}>
+                <button 
+                  type="button"
+                  onClick={() => setWalletMode("add")}
+                  className={`px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition cursor-pointer ${walletMode === "add" ? "bg-green-600 text-white" : mutedText}`}
+                >
+                  ➕ Add Money
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setWalletMode("withdraw")}
+                  className={`px-4 py-2 rounded-md text-xs sm:text-sm font-bold transition cursor-pointer ${walletMode === "withdraw" ? "bg-blue-600 text-white" : mutedText}`}
+                >
+                  💸 Withdraw
+                </button>
+              </div>
             </div>
 
             {walletMode === "add" ? (
-              <div>
-                <div className={`border p-6 rounded-xl text-center mb-5 flex flex-col items-center ${subCardBg}`}>
-                  <p className={`text-xs ${mutedText} mb-3 font-semibold`}>Scan & Pay via PhonePe / Any UPI App:</p>
-                  
-                  <div className="bg-white p-4 rounded-2xl border-2 border-yellow-500/50 shadow-2xl inline-block">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
+                <div className={`border p-4 rounded-xl text-center flex flex-col items-center ${subCardBg}`}>
+                  <p className={`text-xs ${mutedText} mb-2 font-semibold`}>Scan & Pay via UPI App:</p>
+                  <div className="bg-white p-2.5 rounded-xl border border-yellow-500/50 shadow inline-block">
                     <img 
                       src="/qr-code.png" 
                       alt="BR Esports QR Code" 
-                      className="w-72 h-72 sm:w-80 sm:h-80 md:w-96 md:h-96 object-contain mx-auto block" 
+                      className="w-40 h-40 sm:w-44 sm:h-44 object-contain mx-auto block" 
                     />
                   </div>
-                  
-                  <div className={`mt-3 flex items-center gap-2 px-4 py-2 rounded-lg border flex-wrap justify-center ${cardBg}`}>
-                    <span className={`text-xs ${mutedText}`}>UPI ID:</span>
-                    <span className={`text-xs ${headingText} font-mono font-bold`}>{MERCHANT_UPI_ID}</span>
+                  <div className={`mt-2.5 flex items-center gap-2 px-3 py-1.5 rounded-lg border flex-wrap justify-center ${cardBg}`}>
+                    <span className={`text-[11px] ${mutedText}`}>UPI:</span>
+                    <span className={`text-[11px] ${headingText} font-mono font-bold`}>{MERCHANT_UPI_ID}</span>
                     <button 
+                      type="button"
                       onClick={() => {
                         navigator.clipboard.writeText(MERCHANT_UPI_ID);
                         alert("📋 UPI ID Copied to Clipboard!");
                       }}
-                      className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer ml-1"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer"
                     >
                       Copy
                     </button>
                   </div>
-                  <p className={`text-[11px] ${mutedText} mt-2`}>💻 PC user hain? Mobile se QR scan karein ya upar di gayi UPI ID par pay karein.</p>
                 </div>
 
                 <form onSubmit={handleAddMoneyRequest} className="space-y-3">
+                  <p className={`text-xs font-semibold ${mutedText}`}>Pay karne ke baad details bhar kar request bhejein:</p>
                   <input 
                     type="number" 
                     placeholder="Amount Paid (₹)" 
                     value={addAmount} 
                     onChange={(e) => setAddAmount(e.target.value)}
-                    className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                    className={`w-full border p-2.5 rounded-lg text-sm ${inputBg}`}
                     required
                   />
                   <input 
@@ -1172,26 +1176,26 @@ export default function Home() {
                     placeholder="Exact 12-Digit UTR Number" 
                     value={utrNumber} 
                     onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
-                    className={`w-full border p-2.5 rounded text-sm font-mono ${inputBg}`}
+                    className={`w-full border p-2.5 rounded-lg text-sm font-mono ${inputBg}`}
                     required
                   />
                   <button 
                     type="submit" 
                     disabled={submittingRequest}
-                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
+                    className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded-lg cursor-pointer transition"
                   >
                     {submittingRequest ? "Verifying & Submitting..." : "Submit Deposit Request"}
                   </button>
                 </form>
               </div>
             ) : (
-              <form onSubmit={handleWithdrawRequest} className="space-y-3">
+              <form onSubmit={handleWithdrawRequest} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <input 
                   type="number" 
                   placeholder="Withdraw Amount (Min ₹30)" 
                   value={withdrawAmount} 
                   onChange={(e) => setWithdrawAmount(e.target.value)}
-                  className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                  className={`w-full border p-2.5 rounded-lg text-sm ${inputBg}`}
                   required
                 />
                 <input 
@@ -1199,13 +1203,13 @@ export default function Home() {
                   placeholder="Your UPI ID" 
                   value={withdrawUpi} 
                   onChange={(e) => setWithdrawUpi(e.target.value)}
-                  className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                  className={`w-full border p-2.5 rounded-lg text-sm ${inputBg}`}
                   required
                 />
                 <button 
                   type="submit" 
                   disabled={submittingRequest}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded-lg cursor-pointer transition"
                 >
                   {submittingRequest ? "Processing..." : "Request Withdrawal"}
                 </button>
@@ -1213,9 +1217,53 @@ export default function Home() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className={`border p-6 rounded-xl ${cardBg}`}>
-              <h3 className={`text-md font-bold ${headingText} mb-4`}>📋 My Requests Status</h3>
+          {/* Compact Requests & Transactions Switcher */}
+          <div className={`border p-5 rounded-xl ${cardBg}`}>
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWalletHistoryTab("transactions")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                    walletHistoryTab === "transactions" ? "bg-yellow-500 text-slate-950" : tabInactive
+                  }`}
+                >
+                  📜 Transactions ({userData?.transactions?.length || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWalletHistoryTab("requests")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                    walletHistoryTab === "requests" ? "bg-yellow-500 text-slate-950" : tabInactive
+                  }`}
+                >
+                  📋 My Requests ({myRequests?.length || 0})
+                </button>
+              </div>
+            </div>
+
+            {walletHistoryTab === "transactions" ? (
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {(!userData?.transactions || userData.transactions.length === 0) ? (
+                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi transaction history nahi hai.</p>
+                ) : (
+                  [...userData.transactions].reverse().map((tx, idx) => {
+                    const txDate = formatDateTime(tx.date);
+                    return (
+                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center gap-2 text-xs ${subCardBg}`}>
+                        <div>
+                          <p className={`font-semibold ${titleText}`}>{tx.text}</p>
+                          <p className={`text-[10px] ${subtleText} mt-0.5`}>{txDate}</p>
+                        </div>
+                        <span className={`font-bold shrink-0 ${tx.amount.startsWith("+") ? "text-green-500" : "text-red-500"}`}>
+                          {tx.amount}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {(!myRequests || myRequests.length === 0) ? (
                   <p className={`text-xs ${subtleText} text-center py-6`}>Koi request nahi hai.</p>
@@ -1223,7 +1271,7 @@ export default function Home() {
                   myRequests.map((req, idx) => {
                     const reqDate = formatDateTime(req.createdAt);
                     return (
-                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${subCardBg}`}>
+                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center gap-2 text-xs ${subCardBg}`}>
                         <div>
                           <p className={`font-semibold ${titleText}`}>
                             {req.type === 'ADD' ? 'Deposit' : 'Withdraw'}: ₹{req.amount}
@@ -1255,31 +1303,7 @@ export default function Home() {
                   })
                 )}
               </div>
-            </div>
-
-            <div className={`border p-6 rounded-xl ${cardBg}`}>
-              <h3 className={`text-md font-bold ${headingText} mb-4`}>📜 Transaction History</h3>
-              <div className="space-y-2 max-h-72 overflow-y-auto">
-                {(!userData?.transactions || userData.transactions.length === 0) ? (
-                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi transaction history nahi hai.</p>
-                ) : (
-                  [...userData.transactions].reverse().map((tx, idx) => {
-                    const txDate = formatDateTime(tx.date);
-                    return (
-                      <div key={idx} className={`p-3 rounded-lg border flex justify-between items-center text-xs ${subCardBg}`}>
-                        <div>
-                          <p className={`font-semibold ${titleText}`}>{tx.text}</p>
-                          <p className={`text-[10px] ${subtleText} mt-0.5`}>{txDate}</p>
-                        </div>
-                        <span className={`font-bold ${tx.amount.startsWith("+") ? "text-green-500" : "text-red-500"}`}>
-                          {tx.amount}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
