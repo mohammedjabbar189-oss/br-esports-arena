@@ -22,7 +22,8 @@ import {
   query,
   where,
   arrayUnion,
-  increment 
+  increment,
+  runTransaction
 } from "firebase/firestore";
 
 // 🔥 Teri Asli Firebase Configuration
@@ -41,6 +42,13 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_EMAIL = "mohammedjabbar189@gmail.com";
+const REFERRAL_BONUS = 10;
+
+const generateReferralCode = (uid = "") => {
+  const prefix = String(uid || "USER").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "BR";
+  const randomPart = Math.floor(1000 + Math.random() * 9000);
+  return `BR${prefix}${randomPart}`;
+};
 
 export default function Home() {
   const [user, setUser] = useState(null);
@@ -63,6 +71,11 @@ export default function Home() {
   
   const [ffUid, setFfUid] = useState("");
   const [ffName, setFfName] = useState("");
+
+  // 🎁 Referral States
+  const [referralInput, setReferralInput] = useState("");
+  const [applyingReferral, setApplyingReferral] = useState(false);
+  const [showRefQr, setShowRefQr] = useState(false);
   
   // Admin Match Form
   const [matchTitle, setMatchTitle] = useState("");
@@ -118,7 +131,7 @@ export default function Home() {
     : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200";
   const borderDivider = isDarkMode ? "border-slate-800" : "border-slate-300";
 
-  // Load saved theme preference
+  // Load saved theme preference & capture ?ref=CODE from URL
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem("br_esports_theme");
@@ -126,6 +139,21 @@ export default function Home() {
         setIsDarkMode(false);
       } else if (savedTheme === "dark") {
         setIsDarkMode(true);
+      }
+
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const refFromUrl = params.get("ref");
+        if (refFromUrl) {
+          const cleanCode = refFromUrl.trim().toUpperCase();
+          localStorage.setItem("br_pending_ref_code", cleanCode);
+          setReferralInput(cleanCode);
+        } else {
+          const savedPending = localStorage.getItem("br_pending_ref_code");
+          if (savedPending) {
+            setReferralInput(savedPending);
+          }
+        }
       }
     } catch {
       // ignore storage errors
@@ -296,6 +324,11 @@ export default function Home() {
             if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
               data.wallet = 0;
             }
+            if (!data.refCode) {
+              const newCode = generateReferralCode(currentUser.uid);
+              setDoc(userRef, { refCode: newCode }, { merge: true });
+              data.refCode = newCode;
+            }
             setUserData(data);
 
             const fairPlayDone = Boolean(data.fairPlayAccepted || data.freeFireUid);
@@ -313,6 +346,9 @@ export default function Home() {
               name: currentUser.displayName,
               email: currentUser.email,
               wallet: 0,
+              refCode: generateReferralCode(currentUser.uid),
+              referredBy: null,
+              referralClaimed: false,
               freeFireUid: "",
               freeFireName: "",
               fairPlayAccepted: false,
@@ -387,6 +423,137 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
+  // 🎁 Safe Referral Bonus Claim Function (₹10 Referrer + ₹10 Referred User)
+  const claimReferralBonus = async (codeToApply, verifiedFfUid, verifiedFfName = "") => {
+    const cleanCode = String(codeToApply || "").trim().toUpperCase();
+    if (!cleanCode || !user || !userData) return false;
+
+    if (userData.referralClaimed || userData.referredBy) {
+      alert("⚠️ Aap pehle hi referral bonus claim kar chuke hain!");
+      return false;
+    }
+
+    if (cleanCode === userData.refCode) {
+      alert("⚠️ Aap apna khud ka referral code use nahi kar sakte!");
+      return false;
+    }
+
+    // Anti-Fraud 1: Same browser/device par pehle claim ho chuka hai toh block
+    try {
+      if (localStorage.getItem("br_ref_claimed_device") === "true") {
+        alert("⚠️ Is device par referral bonus pehle hi claim ho chuka hai.");
+        return false;
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    // Anti-Fraud 2: Same Free Fire UID kisi aur account mein pehle se use toh nahi hui
+    const cleanUid = String(verifiedFfUid || userData.freeFireUid || "").trim();
+    if (!/^\d{8,12}$/.test(cleanUid)) {
+      alert("⚠️ Referral bonus ke liye valid 8–12 digit Free Fire UID zaroori hai.");
+      return false;
+    }
+
+    const uidQuery = query(collection(db, "users"), where("freeFireUid", "==", cleanUid));
+    const uidSnap = await getDocs(uidQuery);
+    const usedByAnotherAccount = uidSnap.docs.some((d) => d.id !== user.uid);
+    if (usedByAnotherAccount) {
+      alert("⚠️ Yeh Free Fire UID pehle kisi aur account se judi hui hai. Referral bonus valid nahi hai.");
+      return false;
+    }
+
+    // Referrer user ko dhoondo
+    const refQuery = query(collection(db, "users"), where("refCode", "==", cleanCode));
+    const refSnap = await getDocs(refQuery);
+    if (refSnap.empty) {
+      alert("❌ Invalid referral code!");
+      return false;
+    }
+
+    const referrerDoc = refSnap.docs[0];
+    const referrerUid = referrerDoc.id;
+    if (referrerUid === user.uid) {
+      alert("⚠️ Apna khud ka referral code apply nahi kar sakte!");
+      return false;
+    }
+
+    await runTransaction(db, async (transaction) => {
+      const currentUserRef = doc(db, "users", user.uid);
+      const referrerUserRef = doc(db, "users", referrerUid);
+
+      const currentSnap = await transaction.get(currentUserRef);
+      const referrerSnap = await transaction.get(referrerUserRef);
+
+      if (!currentSnap.exists() || !referrerSnap.exists()) {
+        throw new Error("Account record nahi mila.");
+      }
+
+      const freshCurrent = currentSnap.data();
+      if (freshCurrent.referralClaimed || freshCurrent.referredBy) {
+        throw new Error("Referral bonus pehle hi claim ho chuka hai.");
+      }
+
+      const nowStr = formatDateTime(new Date());
+      const referredName = verifiedFfName || freshCurrent.freeFireName || freshCurrent.name || "Friend";
+
+      // Referrer ko ₹10 instant
+      transaction.update(referrerUserRef, {
+        wallet: increment(REFERRAL_BONUS),
+        transactions: arrayUnion({
+          text: `Referral Bonus (${referredName})`,
+          amount: `+₹${REFERRAL_BONUS}`,
+          date: nowStr,
+        }),
+      });
+
+      // Naye user ko bhi ₹10 instant
+      transaction.update(currentUserRef, {
+        wallet: increment(REFERRAL_BONUS),
+        referredBy: referrerUid,
+        referralClaimed: true,
+        transactions: arrayUnion({
+          text: `Referral Welcome Bonus (${cleanCode})`,
+          amount: `+₹${REFERRAL_BONUS}`,
+          date: nowStr,
+        }),
+      });
+    });
+
+    try {
+      localStorage.setItem("br_ref_claimed_device", "true");
+      localStorage.removeItem("br_pending_ref_code");
+    } catch {
+      // ignore storage errors
+    }
+
+    setReferralInput("");
+    return true;
+  };
+
+  const handleManualReferralSubmit = async (e) => {
+    e.preventDefault();
+    if (applyingReferral) return;
+
+    if (!userData?.freeFireUid) {
+      alert("⚠️ Referral bonus lene ke liye pehle apni asli Free Fire UID save & lock karein!");
+      setShowUidModal(true);
+      return;
+    }
+
+    setApplyingReferral(true);
+    try {
+      const ok = await claimReferralBonus(referralInput, userData.freeFireUid, userData.freeFireName);
+      if (ok) {
+        alert("🎉 Badhai ho! Aapko aur aapke dost dono ko ₹10-₹10 instant wallet mein mil gaye!");
+      }
+    } catch (err) {
+      alert("⚠️ " + (err.message || "Referral bonus apply nahi ho paya."));
+    } finally {
+      setApplyingReferral(false);
+    }
+  };
+
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
@@ -420,16 +587,32 @@ export default function Home() {
       },
       { merge: true }
     );
-    setUserData({
+
+    const updatedLocal = {
       ...userData,
       freeFireUid: cleanUid,
       freeFireName: cleanName,
       fairPlayAccepted: true,
       introGuideCompleted: true
-    });
+    };
+    setUserData(updatedLocal);
     setShowUidModal(false);
     setHasAcceptedFairPlayNotice(true);
     setHasPassedIntroGuide(true);
+
+    const pendingCode = referralInput.trim();
+    if (pendingCode && !updatedLocal.referralClaimed) {
+      try {
+        const claimed = await claimReferralBonus(pendingCode, cleanUid, cleanName);
+        if (claimed) {
+          alert("✅ Free Fire ID Locked & 🎉 ₹10 Referral Bonus dono ke wallet mein add ho gaya!");
+          return;
+        }
+      } catch (err) {
+        console.error("Auto referral claim error:", err);
+      }
+    }
+
     alert("✅ Free Fire ID Successfully Locked & Saved!");
   };
 
@@ -1162,6 +1345,13 @@ export default function Home() {
     );
   }
 
+  const originUrl = typeof window !== "undefined" ? window.location.origin : "https://br-esports-arena.web.app";
+  const myRefCode = userData?.refCode || "";
+  const shareLink = `${originUrl}/?ref=${myRefCode}`;
+  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(shareLink)}`;
+  const waMessage = `🎮 *BR Esports Arena* par Free Fire Solo Custom Room khelo aur Real Cash jeeto!\n\n🎁 Mere link se join karo aur apni FF UID lock karte hi *₹10 Instant Bonus* pao:\n${shareLink}\n\n🔑 Referral Code: *${myRefCode}*`;
+  const waShareUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
+
   return (
     <main className={`min-h-screen ${pageBg} p-4 transition-colors duration-200`}>
       {renderLegalModal()}
@@ -1283,7 +1473,7 @@ export default function Home() {
 
       {/* 🔥 Clean Rules Section */}
       <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
-        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill.</span>
+        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Refer & Earn = ₹10 + ₹10 Instant!</span>
       </div>
 
       <div className={`flex gap-2 mb-6 border-b ${borderDivider} pb-3 overflow-x-auto`}>
@@ -1545,7 +1735,7 @@ export default function Home() {
       )}
 
       {activeTab === "wallet" && (
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-5">
           <div className={`border p-5 sm:p-6 rounded-2xl ${cardBg}`}>
             <div className={`flex flex-wrap justify-between items-center gap-3 p-4 rounded-xl border mb-5 ${subCardBg}`}>
               <div>
@@ -1652,6 +1842,118 @@ export default function Home() {
                   {submittingRequest ? "Processing..." : "Request Withdrawal"}
                 </button>
               </form>
+            )}
+          </div>
+
+          {/* 🎁 Refer & Earn Card (₹10 + ₹10 Instant + WhatsApp Link + QR Code) */}
+          <div className={`border p-5 sm:p-6 rounded-2xl space-y-4 ${cardBg}`}>
+            <div className="flex flex-wrap justify-between items-center gap-2">
+              <div>
+                <h3 className={`text-lg font-extrabold ${headingText}`}>🎁 Refer & Earn — Dono Ko ₹10 Instant!</h3>
+                <p className={`text-xs ${mutedText}`}>
+                  Dost ko WhatsApp link ya QR code bhejein. Jaise hi wo apni asli Free Fire UID lock karega, <strong className={titleText}>aapko ₹10</strong> aur <strong className={titleText}>unhe bhi ₹10</strong> turant wallet mein milenge!
+                </p>
+              </div>
+              <span className="text-xs bg-green-500/20 text-green-500 border border-green-500/40 px-3 py-1 rounded-full font-bold">
+                ₹10 + ₹10 Instant
+              </span>
+            </div>
+
+            <div className={`p-3.5 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${subCardBg}`}>
+              <div>
+                <span className={`text-[11px] block ${mutedText}`}>Aapka Referral Code</span>
+                <span className={`text-lg font-mono font-extrabold tracking-wider ${headingText}`}>{myRefCode}</span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href={waShareUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3.5 py-2 rounded-lg flex items-center gap-1.5 transition"
+                >
+                  <span>📲</span> WhatsApp Share
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(shareLink);
+                    alert("📋 Referral Link Copy Ho Gaya!");
+                  }}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-xs font-bold px-3.5 py-2 rounded-lg cursor-pointer transition"
+                >
+                  🔗 Copy Link
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRefQr((prev) => !prev)}
+                  className={`text-xs font-bold px-3.5 py-2 rounded-lg cursor-pointer transition ${tabInactive}`}
+                >
+                  {showRefQr ? "✕ Hide QR" : "📷 QR Code"}
+                </button>
+              </div>
+            </div>
+
+            {showRefQr && (
+              <div className={`p-4 rounded-xl border text-center space-y-2.5 ${subCardBg}`}>
+                <p className={`text-xs font-semibold ${titleText}`}>
+                  Dost ko yeh QR Code scan karwayein ya WhatsApp par bhejein:
+                </p>
+                <div className="bg-white p-3 rounded-xl inline-block border border-yellow-500/50 shadow">
+                  <img
+                    src={qrImageUrl}
+                    alt="Referral QR Code"
+                    className="w-44 h-44 object-contain mx-auto block"
+                  />
+                </div>
+                <p className={`text-[11px] font-mono break-all ${mutedText}`}>{shareLink}</p>
+                <div>
+                  <a
+                    href={qrImageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download={`BR-Referral-${myRefCode}.png`}
+                    className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-1.5 rounded-lg"
+                  >
+                    ⬇️ Open / Save QR
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {!userData?.referralClaimed ? (
+              <form onSubmit={handleManualReferralSubmit} className={`p-3.5 rounded-xl border space-y-2 ${subCardBg}`}>
+                <label className={`block text-xs font-bold ${titleText}`}>
+                  🎟️ Kisi dost ka Referral Code hai? Daalein aur ₹10 paayein:
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Enter Referral Code (e.g. BR8X4K2)"
+                    value={referralInput}
+                    onChange={(e) => setReferralInput(e.target.value.toUpperCase())}
+                    className={`flex-1 border p-2.5 rounded-lg text-xs font-mono uppercase ${inputBg}`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={applyingReferral}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg cursor-pointer transition shrink-0"
+                  >
+                    {applyingReferral ? "Checking..." : "Claim ₹10"}
+                  </button>
+                </div>
+                {!userData?.freeFireUid && (
+                  <p className="text-[11px] text-amber-400">
+                    * Bonus unlock karne ke liye pehle apni asli Free Fire UID lock karna zaroori hai.
+                  </p>
+                )}
+              </form>
+            ) : (
+              <div className="text-xs text-green-500 font-semibold">
+                ✅ Aap apna ₹10 Referral Welcome Bonus pehle hi claim kar chuke hain!
+              </div>
             )}
           </div>
         </div>
