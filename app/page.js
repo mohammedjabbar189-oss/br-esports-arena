@@ -197,6 +197,31 @@ export default function Home() {
     (a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
   );
 
+  const handleDeleteScoreboardEntry = async (entryId) => {
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!entryId) return;
+    try {
+      await deleteDoc(doc(db, "winners_board", entryId));
+    } catch (error) {
+      alert("Entry delete karne mein error aaya: " + error.message);
+    }
+  };
+
+  const handleClearScoreboard = async () => {
+    if (!isAdmin) return alert("Unauthorized!");
+    if (!winnersBoard || winnersBoard.length === 0) return;
+    const confirmClear = window.confirm("Kya aap scoreboard ki saari entries clear karna chahte hain?");
+    if (!confirmClear) return;
+    try {
+      await Promise.all(
+        winnersBoard.map((item) => deleteDoc(doc(db, "winners_board", item.id)))
+      );
+      alert("✅ Scoreboard clear ho gaya!");
+    } catch (error) {
+      alert("Scoreboard clear karne mein error aaya: " + error.message);
+    }
+  };
+
   const sortRequestsList = (list) => {
     return list.sort((a, b) => {
       if (a.status === "Pending" && b.status !== "Pending") return -1;
@@ -437,7 +462,7 @@ export default function Home() {
 
     const updatedKicked = (matchObj.kickedPlayers || []).filter((k) => {
       const sameAuth = kickedPlayer.uid && k.uid && k.uid === kickedPlayer.uid;
-      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(kickedPlayer.ffUid).trim();
+      const sameFf = kickedPlayer.ffUid && k.ffUid && String(k.ffUid).trim() === String(k.ffUid).trim();
       return !(sameAuth || sameFf);
     });
 
@@ -992,14 +1017,25 @@ export default function Home() {
           <div className={`border p-5 rounded-xl ${cardBg}`}>
             <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
               <div>
-                <h2 className={`text-lg font-bold ${headingText}`}>🏅 Winners & Kills Scoreboard</h2>
+                <h2 className={`text-lg font-bold ${headingText}`}>🏅 Recent Winners & Kills</h2>
                 <p className={`text-xs ${mutedText}`}>
-                  Recent match winners, unke kills, aur unko mili total prize amount ki live list.
+                  Recent match winners, unke kills, aur unko mili total prize amount.
                 </p>
               </div>
-              <span className="text-xs bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 px-3 py-1 rounded-full font-bold">
-                Verified Payouts
-              </span>
+              <div className="flex items-center gap-2">
+                {isAdmin && sortedWinnersBoard.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearScoreboard}
+                    className="bg-red-600/20 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white text-xs font-bold px-3 py-1 rounded-lg cursor-pointer transition"
+                  >
+                    🧹 Clear All
+                  </button>
+                )}
+                <span className="text-xs bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 px-3 py-1 rounded-full font-bold">
+                  Verified Payouts
+                </span>
+              </div>
             </div>
 
             {sortedWinnersBoard.length === 0 ? (
@@ -1016,9 +1052,6 @@ export default function Home() {
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-extrabold px-2 py-0.5 rounded ${isDarkMode ? "bg-yellow-500/20 text-yellow-400" : "bg-amber-100 text-amber-800"}`}>
-                          #{idx + 1}
-                        </span>
                         <span className={`text-sm font-bold ${titleText}`}>
                           {item.ffName || "Player"}
                         </span>
@@ -1046,11 +1079,23 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="sm:text-right flex sm:block justify-between items-center border-t sm:border-t-0 border-slate-800/40 pt-2 sm:pt-0">
-                      <span className={`text-[11px] block ${mutedText}`}>Prize Won</span>
-                      <span className="text-lg font-extrabold text-emerald-500">
-                        +₹{Number(item.totalPrize) || 0}
-                      </span>
+                    <div className="sm:text-right flex sm:items-center gap-3 justify-between">
+                      <div>
+                        <span className={`text-[11px] block ${mutedText}`}>Prize Won</span>
+                        <span className="text-lg font-extrabold text-emerald-500">
+                          +₹{Number(item.totalPrize) || 0}
+                        </span>
+                      </div>
+                      {isAdmin && item.id && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteScoreboardEntry(item.id)}
+                          title="Delete entry"
+                          className="bg-red-600/20 border border-red-600/60 text-red-500 hover:bg-red-600 hover:text-white text-xs font-bold px-2.5 py-1 rounded-lg cursor-pointer transition"
+                        >
+                          🗑️
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
