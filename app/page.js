@@ -95,12 +95,12 @@ export default function Home() {
   const [roomPassInput, setRoomPassInput] = useState("");
   const [cancelMatchId, setCancelMatchId] = useState("");
 
-  // Admin Prize / Winnings States (Booyah + Kills × Per-Kill Rate)
+  // Admin Prize / Winnings States (Per-Kill + Optional Extra Bonus)
   const [prizeMatchId, setPrizeMatchId] = useState("");
   const [prizeWinnerUid, setPrizeWinnerUid] = useState("");
-  const [booyahAmount, setBooyahAmount] = useState("300");
+  const [booyahAmount, setBooyahAmount] = useState("0");
   const [killsCount, setKillsCount] = useState("0");
-  const [perKillRate, setPerKillRate] = useState("3");
+  const [perKillRate, setPerKillRate] = useState("5");
   const [sendingPrize, setSendingPrize] = useState(false);
 
   // Wallet States
@@ -833,7 +833,6 @@ export default function Home() {
       const matchLabel = selectedMatch?.title ? ` (${selectedMatch.title})` : "";
 
       const parts = [];
-      if (parsedBooyah > 0) parts.push(`Booyah ₹${parsedBooyah}`);
       if (parsedKills > 0) {
         parts.push(
           parsedPerKill > 0
@@ -841,7 +840,8 @@ export default function Home() {
             : `${parsedKills} Kills`
         );
       }
-      const breakdownText = parts.length > 0 ? parts.join(" + ") : "Match Prize";
+      if (parsedBooyah > 0) parts.push(`Bonus ₹${parsedBooyah}`);
+      const breakdownText = parts.length > 0 ? parts.join(" + ") : "Per-Kill Prize";
 
       const winTx = {
         text: `${breakdownText}${matchLabel}`,
@@ -1366,9 +1366,9 @@ export default function Home() {
               </div>
 
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
+                <p className={`text-sm font-bold ${headingText}`}>4. Per-Kill Winnings, Refund & Withdrawal</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
+                  Sabhi matches per-kill basis par chalenge (rate har match ke hisaab se alag-alag rahega). Kills ka payout aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
                 </p>
               </div>
             </div>
@@ -1537,7 +1537,7 @@ export default function Home() {
 
       {/* 🔥 Clean Rules Section */}
       <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
-        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Bonus Wallet (₹50 UID + ₹50 Referral = ₹100) sirf match entry mein deduct hota hai.</span>
+        <span>🔥 <b>Rules:</b> Sabhi matches <b>Per Kill</b> basis par chalenge (rate har match ke hisaab se alag-alag rahega). Bonus Wallet sirf match entry fee ke liye hai.</span>
       </div>
 
       <div className={`flex gap-2 mb-6 border-b ${borderDivider} pb-3 overflow-x-auto`}>
@@ -1589,7 +1589,7 @@ export default function Home() {
               <div className="space-y-1">
                 <p className={`font-bold ${headingText}`}>👋 Naye Player hain? Bas 3 steps mein khelein:</p>
                 <p className={mutedText}>
-                  1. Asli FF UID lock karke <strong className={titleText}>₹50 Bonus</strong> (+₹50 referral) lein • 2. Match <strong className={titleText}>Join Now</strong> karein (Bonus Wallet pehle deduct hoga) aur yahin <strong className={titleText}>Room ID & Pass</strong> lein • 3. Jeetne par paisa Withdrawable Wallet mein aayega.
+                  1. Asli FF UID lock karke <strong className={titleText}>₹50 Bonus</strong> (+₹50 referral) lein • 2. Match <strong className={titleText}>Join Now</strong> karein (Bonus Wallet pehle deduct hoga) aur yahin <strong className={titleText}>Room ID & Pass</strong> lein • 3. Per-kill payout Withdrawable Wallet mein aayega.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -1644,7 +1644,7 @@ export default function Home() {
                       )}
                     </div>
                     <h3 className={`text-lg font-bold mt-2 ${titleText}`}>{match.title}</h3>
-                    <p className={`text-sm font-semibold ${headingText} mt-1`}>Prize: {match.prizePool}</p>
+                    <p className={`text-sm font-semibold ${headingText} mt-1`}>Rate / Prize: {match.prizePool}</p>
                     <p className={`text-xs ${mutedText} mt-1`}>Players Joined: {joinedCount} / {slotLimit}</p>
                     
                     {isJoined ? (
@@ -1712,7 +1712,7 @@ export default function Home() {
               <div>
                 <h2 className={`text-lg font-bold ${headingText}`}>🏅 Recent Winners & Kills</h2>
                 <p className={`text-xs ${mutedText}`}>
-                  Recent match winners, unke kills, aur unko mili total prize amount.
+                  Recent match players, unke kills, aur unko mili total per-kill prize amount.
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1761,9 +1761,9 @@ export default function Home() {
                         <span className="text-blue-500 font-semibold">
                           🔫 Kills: {Number(item.kills) || 0}
                         </span>
-                        {(Number(item.booyahAmount) || 0) > 0 && (
+                        {(Number(item.perKillRate) || 0) > 0 && (
                           <span className={`${headingText} font-semibold`}>
-                            👑 Booyah: ₹{Number(item.booyahAmount) || 0}
+                            ₹{Number(item.perKillRate) || 0}/kill
                           </span>
                         )}
                         {formatDateTime(item.createdAt) && (
@@ -2136,7 +2136,7 @@ export default function Home() {
             <div>
               <h2 className={`text-xl font-bold ${headingText}`}>📖 Naye Players Ke Liye Complete Guide</h2>
               <p className={`text-xs ${mutedText} mt-1`}>
-                BR Esports Arena par match khelne, paisa add/withdraw karne, aur winnings paane ka poora process neeche diya gaya hai.
+                BR Esports Arena par match khelne, paisa add/withdraw karne, aur per-kill winnings paane ka poora process neeche diya gaya hai.
               </p>
             </div>
 
@@ -2163,9 +2163,9 @@ export default function Home() {
               </div>
 
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
+                <p className={`text-sm font-bold ${headingText}`}>4. Per-Kill Payout, Refund & Withdrawal</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
+                  Sabhi matches per-kill basis par chalenge (rate har match ke hisaab se alag-alag rahega). Kills ka payout aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
                 </p>
               </div>
             </div>
@@ -2264,7 +2264,7 @@ export default function Home() {
                   </div>
                   <input 
                     type="text" 
-                    placeholder="Prize Pool (e.g. ₹300)" 
+                    placeholder="Per Kill Rate (e.g. ₹10 / Kill)" 
                     value={prizePool} 
                     onChange={(e) => setPrizePool(e.target.value)}
                     className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
@@ -2375,9 +2375,9 @@ export default function Home() {
           {adminSection === "payouts" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className={`border border-emerald-700/50 p-6 rounded-xl ${cardBg}`}>
-                <h2 className="text-lg font-bold mb-2 text-emerald-500">🏆 Send Winner Prize (Auto Calculator)</h2>
+                <h2 className="text-lg font-bold mb-2 text-emerald-500">🏆 Send Per-Kill Prize (Auto Calculator)</h2>
                 <p className={`text-xs ${mutedText} mb-3`}>
-                  Har match ke rule ke hisaab se Booyah + (Kills × Per-Kill Rate) daalein—total apne aap calculate ho jayega.
+                  Match select karein, player chunein, Kills Count aur us match ka Per Kill Rate daalein—total apne aap calculate ho jayega.
                 </p>
                 <form onSubmit={handleSendPrize} className="space-y-3">
                   <select 
@@ -2401,7 +2401,7 @@ export default function Home() {
                     className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                     required
                   >
-                    <option value="">-- Choose Winner Player --</option>
+                    <option value="">-- Choose Player --</option>
                     {(tournaments.find(m => m.id === prizeMatchId)?.players || []).map((p, idx) => (
                       <option key={`${p.uid}-${idx}`} value={p.uid}>
                         {idx + 1}. {p.ffName} (UID: {p.ffUid})
@@ -2410,17 +2410,6 @@ export default function Home() {
                   </select>
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                    <div>
-                      <label className={`block text-[11px] ${mutedText} mb-1`}>Booyah Prize (₹)</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        placeholder="e.g. 30 / 300 / 500" 
-                        value={booyahAmount} 
-                        onChange={(e) => setBooyahAmount(e.target.value)}
-                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
-                      />
-                    </div>
                     <div>
                       <label className={`block text-[11px] ${mutedText} mb-1`}>Kills Count</label>
                       <input 
@@ -2437,9 +2426,20 @@ export default function Home() {
                       <input 
                         type="number" 
                         min="0"
-                        placeholder="e.g. 3 / 7 / 10" 
+                        placeholder="e.g. 5 / 10 / 15" 
                         value={perKillRate} 
                         onChange={(e) => setPerKillRate(e.target.value)}
+                        className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
+                      />
+                    </div>
+                    <div>
+                      <label className={`block text-[11px] ${mutedText} mb-1`}>Extra Bonus (₹, opt)</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        placeholder="0" 
+                        value={booyahAmount} 
+                        onChange={(e) => setBooyahAmount(e.target.value)}
                         className={`w-full border p-2.5 rounded text-sm ${inputBg}`}
                       />
                     </div>
@@ -2447,7 +2447,7 @@ export default function Home() {
 
                   <div className={`border border-emerald-800/60 rounded-lg p-3 flex justify-between items-center text-xs ${subCardBg}`}>
                     <span className={mutedText}>
-                      Kills Bonus: <strong className={titleText}>₹{killsTotal}</strong> ({parsedKills} × ₹{parsedPerKill})
+                      Kills Payout: <strong className={titleText}>₹{killsTotal}</strong> ({parsedKills} × ₹{parsedPerKill})
                     </span>
                     <span className="text-sm font-extrabold text-emerald-500">
                       Total Payout: ₹{calculatedTotalPrize}
@@ -2459,7 +2459,7 @@ export default function Home() {
                     disabled={sendingPrize || calculatedTotalPrize <= 0}
                     className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white font-bold py-2.5 rounded cursor-pointer"
                   >
-                    {sendingPrize ? "Sending Prize..." : `Send ₹${calculatedTotalPrize} to Winner Wallet`}
+                    {sendingPrize ? "Sending Prize..." : `Send ₹${calculatedTotalPrize} to Player Wallet`}
                   </button>
                 </form>
               </div>
