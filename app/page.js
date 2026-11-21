@@ -42,7 +42,8 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const ADMIN_EMAIL = "mohammedjabbar189@gmail.com";
-const REFERRAL_BONUS = 10;
+const UID_LOCK_BONUS = 50;
+const REFERRAL_SPLIT_BONUS = 50;
 
 const generateReferralCode = (uid = "") => {
   const prefix = String(uid || "USER").replace(/[^a-zA-Z0-9]/g, "").slice(0, 4).toUpperCase() || "BR";
@@ -324,6 +325,9 @@ export default function Home() {
             if (typeof data.wallet !== 'number' || isNaN(data.wallet)) {
               data.wallet = 0;
             }
+            if (typeof data.bonusWallet !== 'number' || isNaN(data.bonusWallet)) {
+              data.bonusWallet = 0;
+            }
             if (!data.refCode) {
               const newCode = generateReferralCode(currentUser.uid);
               setDoc(userRef, { refCode: newCode }, { merge: true });
@@ -346,6 +350,8 @@ export default function Home() {
               name: currentUser.displayName,
               email: currentUser.email,
               wallet: 0,
+              bonusWallet: 0,
+              uidLockBonusGiven: false,
               refCode: generateReferralCode(currentUser.uid),
               referredBy: null,
               referralClaimed: false,
@@ -423,7 +429,7 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
-  // 🎁 Safe Referral Bonus Claim Function (₹10 Referrer + ₹10 Referred User)
+  // 🎁 Referral Bonus Claim Function (+₹50 Bonus Wallet Dono Ko)
   const claimReferralBonus = async (codeToApply, verifiedFfUid, verifiedFfName = "") => {
     const cleanCode = String(codeToApply || "").trim().toUpperCase();
     if (!cleanCode || !user || !userData) return false;
@@ -463,7 +469,6 @@ export default function Home() {
       return false;
     }
 
-    // Referrer user ko dhoondo
     const refQuery = query(collection(db, "users"), where("refCode", "==", cleanCode));
     const refSnap = await getDocs(refQuery);
     if (refSnap.empty) {
@@ -497,24 +502,24 @@ export default function Home() {
       const nowStr = formatDateTime(new Date());
       const referredName = verifiedFfName || freshCurrent.freeFireName || freshCurrent.name || "Friend";
 
-      // Referrer ko ₹10 instant
+      // Referrer ko ₹50 Bonus Wallet mein (sirf match entry ke liye)
       transaction.update(referrerUserRef, {
-        wallet: increment(REFERRAL_BONUS),
+        bonusWallet: increment(REFERRAL_SPLIT_BONUS),
         transactions: arrayUnion({
-          text: `Referral Bonus (${referredName})`,
-          amount: `+₹${REFERRAL_BONUS}`,
+          text: `Referral Bonus (${referredName}) — Match Entry Only`,
+          amount: `+₹${REFERRAL_SPLIT_BONUS} Bonus`,
           date: nowStr,
         }),
       });
 
-      // Naye user ko bhi ₹10 instant
+      // Naye user ko bhi ₹50 Bonus Wallet mein (sirf match entry ke liye)
       transaction.update(currentUserRef, {
-        wallet: increment(REFERRAL_BONUS),
+        bonusWallet: increment(REFERRAL_SPLIT_BONUS),
         referredBy: referrerUid,
         referralClaimed: true,
         transactions: arrayUnion({
-          text: `Referral Welcome Bonus (${cleanCode})`,
-          amount: `+₹${REFERRAL_BONUS}`,
+          text: `Referral Bonus (${cleanCode}) — Match Entry Only`,
+          amount: `+₹${REFERRAL_SPLIT_BONUS} Bonus`,
           date: nowStr,
         }),
       });
@@ -545,7 +550,7 @@ export default function Home() {
     try {
       const ok = await claimReferralBonus(referralInput, userData.freeFireUid, userData.freeFireName);
       if (ok) {
-        alert("🎉 Badhai ho! Aapko aur aapke dost dono ko ₹10-₹10 instant wallet mein mil gaye!");
+        alert("🎉 Badhai ho! Aapko aur aapke dost dono ko ₹50-₹50 Bonus Wallet (Match Entry Only) mein mil gaye!");
       }
     } catch (err) {
       alert("⚠️ " + (err.message || "Referral bonus apply nahi ho paya."));
@@ -554,6 +559,7 @@ export default function Home() {
     }
   };
 
+  // 🔒 Save & Lock FF UID + Give ₹50 UID Lock Bonus (Bonus Wallet - Match Entry Only)
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
@@ -577,23 +583,36 @@ export default function Home() {
     }
 
     const userRef = doc(db, "users", user.uid);
-    await setDoc(
-      userRef,
-      {
-        freeFireUid: cleanUid,
-        freeFireName: cleanName,
-        fairPlayAccepted: true,
-        introGuideCompleted: true
-      },
-      { merge: true }
-    );
+    const shouldGiveUidBonus = !userData?.uidLockBonusGiven;
+    const nowStr = formatDateTime(new Date());
+
+    const payload = {
+      freeFireUid: cleanUid,
+      freeFireName: cleanName,
+      fairPlayAccepted: true,
+      introGuideCompleted: true
+    };
+
+    if (shouldGiveUidBonus) {
+      payload.bonusWallet = increment(UID_LOCK_BONUS);
+      payload.uidLockBonusGiven = true;
+      payload.transactions = arrayUnion({
+        text: `UID Lock Welcome Bonus — Match Entry Only`,
+        amount: `+₹${UID_LOCK_BONUS} Bonus`,
+        date: nowStr
+      });
+    }
+
+    await setDoc(userRef, payload, { merge: true });
 
     const updatedLocal = {
       ...userData,
       freeFireUid: cleanUid,
       freeFireName: cleanName,
       fairPlayAccepted: true,
-      introGuideCompleted: true
+      introGuideCompleted: true,
+      uidLockBonusGiven: true,
+      bonusWallet: (Number(userData?.bonusWallet) || 0) + (shouldGiveUidBonus ? UID_LOCK_BONUS : 0)
     };
     setUserData(updatedLocal);
     setShowUidModal(false);
@@ -605,7 +624,7 @@ export default function Home() {
       try {
         const claimed = await claimReferralBonus(pendingCode, cleanUid, cleanName);
         if (claimed) {
-          alert("✅ Free Fire ID Locked & 🎉 ₹10 Referral Bonus dono ke wallet mein add ho gaya!");
+          alert("✅ UID Locked (+₹50 Bonus) aur Referral Code apply (+₹50 Bonus)! Total ₹100 Bonus Wallet mein add ho gaya.");
           return;
         }
       } catch (err) {
@@ -613,7 +632,11 @@ export default function Home() {
       }
     }
 
-    alert("✅ Free Fire ID Successfully Locked & Saved!");
+    if (shouldGiveUidBonus) {
+      alert(`✅ Free Fire ID Locked & 🎉 ₹${UID_LOCK_BONUS} Bonus Wallet (Match Entry Only) mein add ho gaya!`);
+    } else {
+      alert("✅ Free Fire ID Successfully Locked & Saved!");
+    }
   };
 
   const handleCreateMatch = async (e) => {
@@ -877,6 +900,7 @@ export default function Home() {
     }
   };
 
+  // 🎮 Join Match: Pehle Bonus Wallet se entry fee deduct, bacha hua Main/Withdraw Wallet se
   const handleJoinMatch = async (match) => {
     if (!userData?.freeFireUid || !userData?.freeFireName) {
       alert("Match join karne ke liye pehle apni asli Free Fire UID aur IGN save karein!");
@@ -902,25 +926,37 @@ export default function Home() {
     }
 
     const feeAmt = Number(freshMatch.entryFee) || 0;
-    const currentWallet = Number(userData.wallet) || 0;
-    if (feeAmt > 0 && currentWallet < feeAmt) {
-      alert("Wallet mein balance kam hai! Pehle Add Money karein.");
+    const currentMainWallet = Number(userData.wallet) || 0;
+    const currentBonusWallet = Number(userData.bonusWallet) || 0;
+    const totalAvailable = currentMainWallet + currentBonusWallet;
+
+    if (feeAmt > 0 && totalAvailable < feeAmt) {
+      alert("Bonus + Main Wallet mein balance kam hai! Pehle Add Money karein.");
       setActiveTab("wallet");
       setWalletMode("add");
       return;
     }
 
-    const newBalance = currentWallet - feeAmt;
+    const deductedFromBonus = feeAmt > 0 ? Math.min(currentBonusWallet, feeAmt) : 0;
+    const deductedFromMain = feeAmt > 0 ? feeAmt - deductedFromBonus : 0;
+
+    const newBonusWallet = currentBonusWallet - deductedFromBonus;
+    const newMainWallet = currentMainWallet - deductedFromMain;
+
     const userRef = doc(db, "users", user.uid);
+    const parts = [];
+    if (deductedFromBonus > 0) parts.push(`₹${deductedFromBonus} Bonus`);
+    if (deductedFromMain > 0) parts.push(`₹${deductedFromMain} Wallet`);
 
     const joinTx = {
-      text: `Joined Match: ${freshMatch.title}`,
-      amount: `-₹${feeAmt}`,
+      text: `Joined Match: ${freshMatch.title}${parts.length > 0 ? ` (${parts.join(" + ")})` : ""}`,
+      amount: feeAmt > 0 ? `-₹${feeAmt}` : `FREE`,
       date: formatDateTime(new Date())
     };
 
     await updateDoc(userRef, { 
-      wallet: newBalance,
+      wallet: newMainWallet,
+      bonusWallet: newBonusWallet,
       transactions: arrayUnion(joinTx)
     });
     await updateDoc(matchRef, {
@@ -985,19 +1021,22 @@ export default function Home() {
     }
   };
 
+  // 💸 Withdraw sirf Main/Withdrawable Wallet (`userData.wallet`) se hoga
   const handleWithdrawRequest = async (e) => {
     e.preventDefault();
     if (submittingRequest) return;
 
     const amt = Number(withdrawAmount);
-    const currentWallet = Number(userData?.wallet) || 0;
+    const currentWithdrawableWallet = Number(userData?.wallet) || 0;
     if (amt < 30) return alert("Minimum withdrawal ₹30 hai!");
-    if (amt > currentWallet) return alert("Aapke wallet mein itna balance nahi hai!");
+    if (amt > currentWithdrawableWallet) {
+      return alert("⚠️ Aapke Withdrawable Wallet mein itna balance nahi hai! Bonus Wallet sirf match entry ke liye hai.");
+    }
     if (!withdrawUpi) return alert("Apna UPI ID daalein!");
 
     setSubmittingRequest(true);
     try {
-      const newBalance = currentWallet - amt;
+      const newBalance = currentWithdrawableWallet - amt;
       await updateDoc(doc(db, "users", user.uid), { wallet: newBalance });
       await addDoc(collection(db, "wallet_requests"), {
         type: "WITHDRAW",
@@ -1057,7 +1096,7 @@ export default function Home() {
                   <strong className={titleText}>4. Fair Play & Anti-Cheat:</strong> Hack, panel, script, unauthorized emulator, ya solo match mein team-up karne par player ko match/platform se ban kiya jayega aur koi prize ya refund nahi diya jayega.
                 </p>
                 <p>
-                  <strong className={titleText}>5. Wallet, Deposit & Withdrawal:</strong> Deposit ke liye valid amount aur exact 12-digit UTR submit karna zaroori hai (fake/duplicate UTR par ban hoga). Minimum withdrawal ₹30 hai aur payout aapki di gayi valid UPI ID par bheja jata hai.
+                  <strong className={titleText}>5. Wallet, Bonus, Deposit & Withdrawal:</strong> Bonus Wallet sirf match entry fee mein deduct hota hai aur withdraw nahi hota. Deposit ke liye valid amount aur exact 12-digit UTR submit karna zaroori hai. Minimum withdrawal ₹30 hai aur sirf Withdrawable Wallet se nikala ja sakta hai.
                 </p>
                 <p>
                   <strong className={titleText}>6. Match Room & Refunds:</strong> Room ID aur Password match se 10 minutes pehle match card mein update hota hai. Agar match cancel hota hai toh entry fee wallet mein refund kar di jati hai.
@@ -1284,14 +1323,14 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform dekhne ke baad ya match join karte waqt bhi UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. UID lock karte hi <strong className={titleText}>₹50 Bonus Wallet</strong> (match entry ke liye) milta hai.
                 </p>
               </div>
 
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>2. Wallet Mein Paise Kaise Add Karein?</p>
+                <p className={`text-sm font-bold ${headingText}`}>2. Bonus Wallet vs Withdrawable Wallet</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
+                  <strong className={titleText}>Bonus Wallet</strong> (UID lock ₹50 + Referral ₹50 = ₹100 tak) sirf <strong className={titleText}>match entry fees</strong> mein deduct hota hai. <strong className={titleText}>Withdrawable Wallet</strong> se aap minimum <strong className={titleText}>₹30</strong> UPI mein nikaal sakte hain.
                 </p>
               </div>
 
@@ -1305,7 +1344,7 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai. Minimum <strong className={titleText}>₹30</strong> hone par <strong className={titleText}>💸 Withdraw</strong> se apni UPI ID mein nikaal sakte hain.
+                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
                 </p>
               </div>
             </div>
@@ -1349,7 +1388,7 @@ export default function Home() {
   const myRefCode = userData?.refCode || "";
   const shareLink = `${originUrl}/?ref=${myRefCode}`;
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(shareLink)}`;
-  const waMessage = `🎮 *BR Esports Arena* par Free Fire Solo Custom Room khelo aur Real Cash jeeto!\n\n🎁 Mere link se join karo aur apni FF UID lock karte hi *₹10 Instant Bonus* pao:\n${shareLink}\n\n🔑 Referral Code: *${myRefCode}*`;
+  const waMessage = `🎮 *BR Esports Arena* par Free Fire Solo Custom Room khelo aur Real Cash jeeto!\n\n🎁 Mere link se join karo, apni FF UID lock karte hi *₹50 Bonus* aur referral par *+₹50 Bonus* (Match Entry ke liye) pao:\n${shareLink}\n\n🔑 Referral Code: *${myRefCode}*`;
   const waShareUrl = `https://wa.me/?text=${encodeURIComponent(waMessage)}`;
 
   return (
@@ -1371,7 +1410,7 @@ export default function Home() {
                   onClick={() => setShowUidModal(true)}
                   className="text-xs bg-yellow-500/20 border border-yellow-500/60 text-yellow-400 hover:bg-yellow-500 hover:text-slate-950 font-bold px-2 py-0.5 rounded cursor-pointer transition"
                 >
-                  ⚠️ Asli FF UID Daalein
+                  ⚠️ Asli FF UID Daalein (+₹50 Bonus)
                 </button>
               )}
               <a 
@@ -1402,6 +1441,7 @@ export default function Home() {
           >
             <span className={`text-xs ${mutedText}`}>Wallet:</span>
             <span className="font-bold text-green-500">₹{userData?.wallet ?? 0}</span>
+            <span className={`text-xs font-bold ${headingText}`}>• Bonus: ₹{userData?.bonusWallet ?? 0}</span>
             <span className="bg-green-600 text-white text-xs px-1.5 py-0.5 rounded font-bold">+ Add</span>
           </button>
 
@@ -1419,7 +1459,7 @@ export default function Home() {
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className={`max-w-md w-full border ${cardBg} p-6 rounded-2xl shadow-2xl space-y-4`}>
             <div className="flex justify-between items-center">
-              <h2 className={`text-lg font-bold ${headingText}`}>🔑 Asli Free Fire UID Daalein</h2>
+              <h2 className={`text-lg font-bold ${headingText}`}>🔑 Asli Free Fire UID Daalein (+₹50 Bonus)</h2>
               <button
                 type="button"
                 onClick={() => setShowUidModal(false)}
@@ -1429,7 +1469,7 @@ export default function Home() {
               </button>
             </div>
             <p className={`text-xs ${mutedText}`}>
-              Apni asli Free Fire UID daalein (8 se 12 digits) aur In-Game Name (IGN):
+              Apni asli Free Fire UID daalein (8 se 12 digits) aur In-Game Name (IGN) — UID lock hote hi ₹50 Bonus Wallet (match entry ke liye) milega:
             </p>
             <p className="text-[11px] text-red-500 font-semibold">
               ⚠️ Dhyan rahe: Ek baar UID save hone ke baad aap khud se change nahi kar sakenge!
@@ -1473,7 +1513,7 @@ export default function Home() {
 
       {/* 🔥 Clean Rules Section */}
       <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
-        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Refer & Earn = ₹10 + ₹10 Instant!</span>
+        <span>🔥 <b>Rules:</b> Free Giveaway Booyah = ₹30. Paid Match Booyah = ₹300 (Min 3 Kills) + ₹3/kill. Bonus Wallet (₹50 UID + ₹50 Referral = ₹100) sirf match entry mein deduct hota hai.</span>
       </div>
 
       <div className={`flex gap-2 mb-6 border-b ${borderDivider} pb-3 overflow-x-auto`}>
@@ -1525,7 +1565,7 @@ export default function Home() {
               <div className="space-y-1">
                 <p className={`font-bold ${headingText}`}>👋 Naye Player hain? Bas 3 steps mein khelein:</p>
                 <p className={mutedText}>
-                  1. <strong className={titleText}>Wallet</strong> mein QR/UPI se pay karke 12-digit UTR submit karein • 2. Match <strong className={titleText}>Join Now</strong> karein aur yahin <strong className={titleText}>Room ID & Pass</strong> lein • 3. Jeetne par paisa Wallet mein aayega, <strong className={titleText}>History</strong> mein record dekhein.
+                  1. Asli FF UID lock karke <strong className={titleText}>₹50 Bonus</strong> (+₹50 referral) lein • 2. Match <strong className={titleText}>Join Now</strong> karein (Bonus Wallet pehle deduct hoga) aur yahin <strong className={titleText}>Room ID & Pass</strong> lein • 3. Jeetne par paisa Withdrawable Wallet mein aayega.
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -1737,12 +1777,21 @@ export default function Home() {
       {activeTab === "wallet" && (
         <div className="max-w-4xl mx-auto space-y-5">
           <div className={`border p-5 sm:p-6 rounded-2xl ${cardBg}`}>
-            <div className={`flex flex-wrap justify-between items-center gap-3 p-4 rounded-xl border mb-5 ${subCardBg}`}>
-              <div>
-                <span className={`text-xs block ${mutedText}`}>Available Balance</span>
+            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-xl border mb-5 ${subCardBg}`}>
+              <div className={`p-3 rounded-lg border ${cardBg}`}>
+                <span className={`text-xs block ${mutedText}`}>Withdrawable Balance (Main + Winnings)</span>
                 <span className="text-2xl font-extrabold text-green-500">₹{userData?.wallet ?? 0}</span>
+                <span className={`text-[10px] block mt-0.5 ${subtleText}`}>Min Withdraw: ₹30</span>
               </div>
-              <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-lg border w-full sm:w-auto ${cardBg}`}>
+              <div className={`p-3 rounded-lg border ${cardBg}`}>
+                <span className={`text-xs block ${mutedText}`}>Bonus Wallet (Match Entry Only)</span>
+                <span className={`text-2xl font-extrabold ${headingText}`}>₹{userData?.bonusWallet ?? 0}</span>
+                <span className={`text-[10px] block mt-0.5 ${subtleText}`}>Auto-deducts in match entry • Non-withdrawable</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end mb-4">
+              <div className={`grid grid-cols-2 gap-1.5 p-1 rounded-lg border w-full sm:w-auto ${subCardBg}`}>
                 <button 
                   type="button"
                   onClick={() => setWalletMode("add")}
@@ -1817,7 +1866,9 @@ export default function Home() {
               </div>
             ) : (
               <form onSubmit={handleWithdrawRequest} className="space-y-3 max-w-xl mx-auto">
-                <p className={`text-xs font-semibold ${mutedText}`}>Minimum withdrawal ₹30 hai. Apni UPI ID sahi bharein:</p>
+                <p className={`text-xs font-semibold ${mutedText}`}>
+                  Minimum withdrawal ₹30 hai. Sirf <strong className={titleText}>Withdrawable Balance (₹{userData?.wallet ?? 0})</strong> withdraw hoga:
+                </p>
                 <input 
                   type="number" 
                   placeholder="Withdraw Amount (Min ₹30)" 
@@ -1845,17 +1896,17 @@ export default function Home() {
             )}
           </div>
 
-          {/* 🎁 Refer & Earn Card (₹10 + ₹10 Instant + WhatsApp Link + QR Code) */}
+          {/* 🎁 Refer & Earn Card (₹50 UID + ₹50 Referral = ₹100 Bonus Wallet — Match Entry Only) */}
           <div className={`border p-5 sm:p-6 rounded-2xl space-y-4 ${cardBg}`}>
             <div className="flex flex-wrap justify-between items-center gap-2">
               <div>
-                <h3 className={`text-lg font-extrabold ${headingText}`}>🎁 Refer & Earn — Dono Ko ₹10 Instant!</h3>
+                <h3 className={`text-lg font-extrabold ${headingText}`}>🎁 Refer & Earn — ₹50 + ₹50 Bonus Wallet!</h3>
                 <p className={`text-xs ${mutedText}`}>
-                  Dost ko WhatsApp link ya QR code bhejein. Jaise hi wo apni asli Free Fire UID lock karega, <strong className={titleText}>aapko ₹10</strong> aur <strong className={titleText}>unhe bhi ₹10</strong> turant wallet mein milenge!
+                  Asli Free Fire UID lock karne par <strong className={titleText}>₹50 Bonus</strong> aur dost ke referral code par <strong className={titleText}>+₹50 Bonus</strong> (total ₹100 tak) Bonus Wallet mein milta hai—jo <strong className={titleText}>sirf match entry fee</strong> mein deduct hota hai.
                 </p>
               </div>
               <span className="text-xs bg-green-500/20 text-green-500 border border-green-500/40 px-3 py-1 rounded-full font-bold">
-                ₹10 + ₹10 Instant
+                ₹50 + ₹50 Entry Bonus
               </span>
             </div>
 
@@ -1926,7 +1977,7 @@ export default function Home() {
             {!userData?.referralClaimed ? (
               <form onSubmit={handleManualReferralSubmit} className={`p-3.5 rounded-xl border space-y-2 ${subCardBg}`}>
                 <label className={`block text-xs font-bold ${titleText}`}>
-                  🎟️ Kisi dost ka Referral Code hai? Daalein aur ₹10 paayein:
+                  🎟️ Kisi dost ka Referral Code hai? Daalein aur +₹50 Entry Bonus paayein:
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -1941,7 +1992,7 @@ export default function Home() {
                     disabled={applyingReferral}
                     className="bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white text-xs font-bold px-4 py-2.5 rounded-lg cursor-pointer transition shrink-0"
                   >
-                    {applyingReferral ? "Checking..." : "Claim ₹10"}
+                    {applyingReferral ? "Checking..." : "Claim +₹50"}
                   </button>
                 </div>
                 {!userData?.freeFireUid && (
@@ -1952,7 +2003,7 @@ export default function Home() {
               </form>
             ) : (
               <div className="text-xs text-green-500 font-semibold">
-                ✅ Aap apna ₹10 Referral Welcome Bonus pehle hi claim kar chuke hain!
+                ✅ Aap apna ₹50 Referral Entry Bonus pehle hi claim kar chuke hain!
               </div>
             )}
           </div>
@@ -2069,14 +2120,14 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>1. Asli Free Fire UID Daalein & Lock Karein</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. Aap platform explore karne ke baad ya match join karte waqt bhi UID daal sakte hain. Ek baar lock hone ke baad UID khud se badli nahi ja sakti—galat UID hui toh <strong className={titleText}>Live Support</strong> se contact karein.
+                  Apni <strong className={titleText}>asli Free Fire UID</strong> (8–12 digits) aur <strong className={titleText}>In-Game Name (IGN)</strong> daalein. UID lock hote hi <strong className={titleText}>₹50 Bonus Wallet</strong> mein aata hai.
                 </p>
               </div>
 
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
-                <p className={`text-sm font-bold ${headingText}`}>2. Wallet Mein Paise Kaise Add Karein?</p>
+                <p className={`text-sm font-bold ${headingText}`}>2. Bonus Wallet vs Withdrawable Wallet</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  <strong className={titleText}>💳 Wallet</strong> tab mein <strong className={titleText}>+ Add Money</strong> chunein, QR code scan karein ya UPI ID copy karke pay karein, phir paid amount aur exact <strong className={titleText}>12-digit UTR</strong> daal kar request bhejein. Approve hote hi balance add ho jayega.
+                  <strong className={titleText}>Bonus Wallet</strong> (₹50 UID + ₹50 Referral = ₹100 tak) sirf <strong className={titleText}>match entry fees</strong> mein use hota hai. <strong className={titleText}>Withdrawable Wallet</strong> se aap minimum <strong className={titleText}>₹30</strong> UPI mein nikaal sakte hain.
                 </p>
               </div>
 
@@ -2090,7 +2141,7 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>4. Winnings, Refund & Withdrawal</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai. Minimum <strong className={titleText}>₹30</strong> hone par <strong className={titleText}>💸 Withdraw</strong> se apni UPI ID mein nikaal sakte hain.
+                  Match ke rules ke hisaab se Booyah + Kills ka prize aapke Withdrawable Wallet mein add hota hai aur <strong className={titleText}>🏅 Winners & Kills</strong> / <strong className={titleText}>📜 History</strong> mein dikhta hai.
                 </p>
               </div>
             </div>
