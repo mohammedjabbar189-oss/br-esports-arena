@@ -916,7 +916,13 @@ export default function Home() {
           onClick={() => setActiveTab("wallet")}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "wallet" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
         >
-          💳 Wallet & History
+          💳 Wallet
+        </button>
+        <button 
+          onClick={() => setActiveTab("history")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition cursor-pointer whitespace-nowrap ${activeTab === "history" ? "bg-yellow-500 text-slate-950 font-bold" : tabInactive}`}
+        >
+          📜 History
         </button>
         
         {isAdmin && (
@@ -1107,10 +1113,9 @@ export default function Home() {
       )}
 
       {activeTab === "wallet" && (
-        <div className="max-w-5xl mx-auto space-y-5">
-          {/* Top Balance + Mode Switch */}
-          <div className={`border p-4 sm:p-5 rounded-xl ${cardBg}`}>
-            <div className={`flex flex-wrap justify-between items-center gap-3 p-3.5 rounded-xl border mb-4 ${subCardBg}`}>
+        <div className="max-w-4xl mx-auto">
+          <div className={`border p-5 sm:p-6 rounded-2xl ${cardBg}`}>
+            <div className={`flex flex-wrap justify-between items-center gap-3 p-4 rounded-xl border mb-5 ${subCardBg}`}>
               <div>
                 <span className={`text-xs block ${mutedText}`}>Available Balance</span>
                 <span className="text-2xl font-extrabold text-green-500">₹{userData?.wallet ?? 0}</span>
@@ -1189,7 +1194,8 @@ export default function Home() {
                 </form>
               </div>
             ) : (
-              <form onSubmit={handleWithdrawRequest} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <form onSubmit={handleWithdrawRequest} className="space-y-3 max-w-xl mx-auto">
+                <p className={`text-xs font-semibold ${mutedText}`}>Minimum withdrawal ₹30 hai. Apni UPI ID sahi bharein:</p>
                 <input 
                   type="number" 
                   placeholder="Withdraw Amount (Min ₹30)" 
@@ -1200,7 +1206,7 @@ export default function Home() {
                 />
                 <input 
                   type="text" 
-                  placeholder="Your UPI ID" 
+                  placeholder="Your UPI ID (e.g. name@ybl)" 
                   value={withdrawUpi} 
                   onChange={(e) => setWithdrawUpi(e.target.value)}
                   className={`w-full border p-2.5 rounded-lg text-sm ${inputBg}`}
@@ -1216,15 +1222,22 @@ export default function Home() {
               </form>
             )}
           </div>
+        </div>
+      )}
 
-          {/* Compact Requests & Transactions Switcher */}
-          <div className={`border p-5 rounded-xl ${cardBg}`}>
-            <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
+      {activeTab === "history" && (
+        <div className="max-w-4xl mx-auto">
+          <div className={`border p-5 sm:p-6 rounded-2xl ${cardBg}`}>
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-4">
+              <div>
+                <h2 className={`text-lg font-bold ${headingText}`}>📜 Account History</h2>
+                <p className={`text-xs ${mutedText}`}>Apni transactions aur deposit/withdrawal requests ka status dekhein.</p>
+              </div>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setWalletHistoryTab("transactions")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
                     walletHistoryTab === "transactions" ? "bg-yellow-500 text-slate-950" : tabInactive
                   }`}
                 >
@@ -1233,7 +1246,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={() => setWalletHistoryTab("requests")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                  className={`px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer transition ${
                     walletHistoryTab === "requests" ? "bg-yellow-500 text-slate-950" : tabInactive
                   }`}
                 >
@@ -1243,9 +1256,9 @@ export default function Home() {
             </div>
 
             {walletHistoryTab === "transactions" ? (
-              <div className="space-y-2 max-h-72 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {(!userData?.transactions || userData.transactions.length === 0) ? (
-                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi transaction history nahi hai.</p>
+                  <p className={`text-xs ${subtleText} text-center py-8`}>Koi transaction history nahi hai.</p>
                 ) : (
                   [...userData.transactions].reverse().map((tx, idx) => {
                     const txDate = formatDateTime(tx.date);
@@ -1264,9 +1277,9 @@ export default function Home() {
                 )}
               </div>
             ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto">
+              <div className="space-y-2 max-h-96 overflow-y-auto">
                 {(!myRequests || myRequests.length === 0) ? (
-                  <p className={`text-xs ${subtleText} text-center py-6`}>Koi request nahi hai.</p>
+                  <p className={`text-xs ${subtleText} text-center py-8`}>Koi request nahi hai.</p>
                 ) : (
                   myRequests.map((req, idx) => {
                     const reqDate = formatDateTime(req.createdAt);
