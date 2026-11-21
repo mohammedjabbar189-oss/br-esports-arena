@@ -144,6 +144,39 @@ export default function Home() {
     });
   };
 
+  // ✅ Save one-time onboarding flags in Firestore so refresh/re-login doesn't repeat them
+  const markFairPlayAccepted = async () => {
+    setHasAcceptedFairPlayNotice(true);
+    setUserData((prev) => (prev ? { ...prev, fairPlayAccepted: true } : prev));
+    if (user?.uid) {
+      try {
+        await setDoc(
+          doc(db, "users", user.uid),
+          { fairPlayAccepted: true, acceptedTermsAt: new Date().toISOString() },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("Failed to save fairPlayAccepted:", err);
+      }
+    }
+  };
+
+  const markIntroGuideCompleted = async () => {
+    setHasPassedIntroGuide(true);
+    setUserData((prev) => (prev ? { ...prev, introGuideCompleted: true } : prev));
+    if (user?.uid) {
+      try {
+        await setDoc(
+          doc(db, "users", user.uid),
+          { introGuideCompleted: true },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("Failed to save introGuideCompleted:", err);
+      }
+    }
+  };
+
   // 🏆 Live Prize Calculation Helper
   const parsedBooyah = Math.max(0, Number(booyahAmount) || 0);
   const parsedKills = Math.max(0, Number(killsCount) || 0);
@@ -254,9 +287,7 @@ export default function Home() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        setHasAcceptedFairPlayNotice(false);
         setFairPlayChecked(false);
-        setHasPassedIntroGuide(false);
         const userRef = doc(db, "users", currentUser.uid);
         
         unsubscribeUser = onSnapshot(userRef, (userSnap) => {
@@ -266,11 +297,15 @@ export default function Home() {
               data.wallet = 0;
             }
             setUserData(data);
+
+            const fairPlayDone = Boolean(data.fairPlayAccepted || data.freeFireUid);
+            const guideDone = Boolean(data.introGuideCompleted || data.freeFireUid);
+            setHasAcceptedFairPlayNotice(fairPlayDone);
+            setHasPassedIntroGuide(guideDone);
+
             if (data.freeFireUid) {
               setFfUid(data.freeFireUid);
               setFfName(data.freeFireName || "");
-              setHasAcceptedFairPlayNotice(true);
-              setHasPassedIntroGuide(true);
               setShowUidModal(false);
             }
           } else {
@@ -280,9 +315,13 @@ export default function Home() {
               wallet: 0,
               freeFireUid: "",
               freeFireName: "",
+              fairPlayAccepted: false,
+              introGuideCompleted: false,
               transactions: [],
               createdAt: new Date()
             };
+            setHasAcceptedFairPlayNotice(false);
+            setHasPassedIntroGuide(false);
             setDoc(userRef, initialData);
             setUserData(initialData);
           }
@@ -371,8 +410,23 @@ export default function Home() {
     }
 
     const userRef = doc(db, "users", user.uid);
-    await setDoc(userRef, { freeFireUid: cleanUid, freeFireName: cleanName }, { merge: true });
-    setUserData({ ...userData, freeFireUid: cleanUid, freeFireName: cleanName });
+    await setDoc(
+      userRef,
+      {
+        freeFireUid: cleanUid,
+        freeFireName: cleanName,
+        fairPlayAccepted: true,
+        introGuideCompleted: true
+      },
+      { merge: true }
+    );
+    setUserData({
+      ...userData,
+      freeFireUid: cleanUid,
+      freeFireName: cleanName,
+      fairPlayAccepted: true,
+      introGuideCompleted: true
+    });
     setShowUidModal(false);
     setHasAcceptedFairPlayNotice(true);
     setHasPassedIntroGuide(true);
@@ -920,7 +974,7 @@ export default function Home() {
     );
   }
 
-  // 🛡️ Step 0 After Google Login: Fair-Play & Skill Platform Notice (Checkbox + OK) Before How to Play
+  // 🛡️ Step 0 After Google Login: Fair-Play & Skill Platform Notice (Saved once in Firestore)
   if (userData && !userData.freeFireUid && !hasAcceptedFairPlayNotice) {
     return (
       <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
@@ -953,18 +1007,18 @@ export default function Home() {
               Skill-Based Esports Declaration
             </h2>
             <p className={`text-xs ${mutedText} mt-1`}>
-              Aage badhne se pehle kripya is zaroori jaankari ko dhyan se padhein:
+              Yeh sirf ek baar ka confirmation hai—OK dabate hi dubara nahi aayega.
             </p>
           </div>
 
-          <div className={`border p-4 rounded-xl space-y-2.5 text-xs sm:text-sm leading-relaxed ${subCardBg}`}>
+          <div className={`border p-4 rounded-xl space-y-2 text-xs sm:text-sm leading-relaxed ${subCardBg}`}>
             <p className={`${titleText} font-semibold`}>
               BR Esports Arena koi <span className="text-yellow-400 font-bold">gambling</span>,{" "}
               <span className="text-yellow-400 font-bold">betting</span>, ya{" "}
-              <span className="text-yellow-400 font-bold">jua (satta / lottery)</span> platform nahi hai.
+              <span className="text-yellow-400 font-bold">lottery</span> platform nahi hai.
             </p>
             <p className={mutedText}>
-              Yeh ek competitive <strong className={titleText}>Esports Skill-Based Tournament</strong> platform hai, jahan matches ka result kisi kismat ya chance par nahi balki players ki real gameplay skill aur performance par aadharit hota hai.
+              Yeh ek skill-based esports tournament platform hai, jahan match ke results players ki gameplay skill par depend karte hain.
             </p>
           </div>
 
@@ -976,7 +1030,7 @@ export default function Home() {
               className="mt-0.5 w-4 h-4 accent-yellow-500 cursor-pointer shrink-0"
             />
             <span className={`text-xs sm:text-sm ${titleText}`}>
-              Main samajhta/samajhti hoon ki yeh koi gambling, betting ya jua platform nahi hai, balki ek skill-based esports tournament platform hai, aur main{" "}
+              Main samajhta/samajhti hoon ki yeh skill-based esports platform hai, aur main{" "}
               <button
                 type="button"
                 onClick={(e) => { e.preventDefault(); setLegalModal("terms"); }}
@@ -1000,7 +1054,7 @@ export default function Home() {
             <button
               type="button"
               disabled={!fairPlayChecked}
-              onClick={() => setHasAcceptedFairPlayNotice(true)}
+              onClick={markFairPlayAccepted}
               className="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 disabled:bg-slate-700 disabled:text-slate-400 text-slate-950 font-extrabold px-8 py-3 rounded-xl text-sm cursor-pointer transition shadow-md"
             >
               OK →
@@ -1011,7 +1065,7 @@ export default function Home() {
     );
   }
 
-  // 📖 After Fair-Play OK: Show How to Play First with Skip / Next Button
+  // 📖 After Fair-Play OK: Show How to Play Once (Saved in Firestore on Skip / Next)
   if (userData && !userData.freeFireUid && !hasPassedIntroGuide) {
     return (
       <main className={`min-h-screen ${pageBg} py-8 px-4`}>
@@ -1076,8 +1130,8 @@ export default function Home() {
             <div className={`pt-3 border-t ${borderDivider} flex flex-wrap justify-between items-center gap-3`}>
               <button
                 type="button"
-                onClick={() => {
-                  setHasPassedIntroGuide(true);
+                onClick={async () => {
+                  await markIntroGuideCompleted();
                   setShowUidModal(true);
                 }}
                 className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition ${tabInactive}`}
@@ -1088,14 +1142,14 @@ export default function Home() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setHasPassedIntroGuide(true)}
+                  onClick={markIntroGuideCompleted}
                   className={`px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold cursor-pointer transition ${tabInactive}`}
                 >
                   Skip
                 </button>
                 <button
                   type="button"
-                  onClick={() => setHasPassedIntroGuide(true)}
+                  onClick={markIntroGuideCompleted}
                   className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-extrabold px-5 py-2.5 rounded-xl text-xs sm:text-sm cursor-pointer transition shadow-md"
                 >
                   Next →
