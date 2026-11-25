@@ -1216,14 +1216,15 @@ export default function Home() {
     try {
       const utrQuery = query(
         collection(db, "wallet_requests"), 
+        where("userId", "==", user.uid),
         where("utr", "==", cleanUtr)
       );
       const querySnapshot = await getDocs(utrQuery);
-      const isDuplicate = querySnapshot.docs.some(doc => doc.data().status !== "Rejected");
+      const isDuplicate = querySnapshot.docs.some(d => d.data().status !== "Rejected");
 
       if (isDuplicate) {
         setSubmittingRequest(false);
-        return alert("⚠️ Error: Yeh UTR number pehle hi use ho chuka hai! Fake ya duplicate entry allowed nahi hai.");
+        return alert("⚠️ Error: Yeh UTR number aapki pehli request mein pehle hi use ho chuka hai! Fake ya duplicate entry allowed nahi hai.");
       }
 
       await addDoc(collection(db, "wallet_requests"), {
