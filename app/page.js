@@ -105,6 +105,7 @@ export default function Home() {
   const [approvedDeposits, setApprovedDeposits] = useState([]);
   const [approvedWithdrawals, setApprovedWithdrawals] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
+  const [processingReqId, setProcessingReqId] = useState(null);
 
   // Admin Room ID & Cancel States
   const [selectedMatchId, setSelectedMatchId] = useState("");
@@ -316,7 +317,6 @@ export default function Home() {
     (a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
   );
 
-  // 📊 Admin Top Summary Totals
   const totalApprovedDepositsAmt = approvedDeposits.reduce(
     (sum, d) => sum + (Number(d.amount) || 0),
     0
@@ -990,48 +990,90 @@ export default function Home() {
     }
   };
 
+  // 🔒 Double-click & double-refund se bachne ke liye Firestore Transaction
   const handleProcessRequest = async (req, action) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !req?.id) return;
+    if (processingReqId === req.id) return;
+
+    setProcessingReqId(req.id);
     const reqRef = doc(db, "wallet_requests", req.id);
     const userRef = doc(db, "users", req.userId);
 
-    if (action === "APPROVE") {
-      if (req.type === "ADD") {
-        const tx = {
-          text: `Added Money via UTR: ${req.utr}`,
-          amount: `+₹${req.amount}`,
-          date: formatDateTime(new Date())
-        };
-        await updateDoc(userRef, {
-          wallet: increment(req.amount),
-          transactions: arrayUnion(tx)
-        });
-      } else if (req.type === "WITHDRAW") {
-        const tx = {
-          text: `Withdrawal Paid to UPI: ${req.upiId}`,
-          amount: `-₹${req.amount}`,
-          date: formatDateTime(new Date())
-        };
-        await updateDoc(userRef, {
-          transactions: arrayUnion(tx)
-        });
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const reqSnap = await transaction.get(reqRef);
+        if (!reqSnap.exists()) {
+          return { ok: false, message: "Request nahi mili." };
+        }
+
+        const freshReq = reqSnap.data();
+        if (freshReq.status !== "Pending") {
+          return {
+            ok: false,
+            message: `Yeh request pehle hi "${freshReq.status}" ho chuki hai.`,
+          };
+        }
+
+        const userSnap = await transaction.get(userRef);
+        if (!userSnap.exists()) {
+          return { ok: false, message: "User account nahi mila." };
+        }
+
+        const amt = Number(freshReq.amount) || 0;
+        const nowStr = formatDateTime(new Date());
+
+        if (action === "APPROVE") {
+          if (freshReq.type === "ADD") {
+            transaction.update(userRef, {
+              wallet: increment(amt),
+              transactions: arrayUnion({
+                text: `Added Money via UTR: ${freshReq.utr}`,
+                amount: `+₹${amt}`,
+                date: nowStr,
+              }),
+            });
+          } else if (freshReq.type === "WITHDRAW") {
+            transaction.update(userRef, {
+              transactions: arrayUnion({
+                text: `Withdrawal Paid to UPI: ${freshReq.upiId}`,
+                amount: `-₹${amt}`,
+                date: nowStr,
+              }),
+            });
+          }
+          transaction.update(reqRef, {
+            status: "Approved",
+            processedAt: nowStr,
+          });
+          return { ok: true, message: "Request Approved Successfully!" };
+        } else {
+          if (freshReq.type === "WITHDRAW") {
+            transaction.update(userRef, {
+              wallet: increment(amt),
+              transactions: arrayUnion({
+                text: `Withdrawal Rejected & Refunded`,
+                amount: `+₹${amt}`,
+                date: nowStr,
+              }),
+            });
+          }
+          transaction.update(reqRef, {
+            status: "Rejected",
+            processedAt: nowStr,
+          });
+          return { ok: true, message: "Request Rejected." };
+        }
+      });
+
+      if (result.ok) {
+        alert(result.message);
+      } else {
+        alert("⚠️ " + result.message);
       }
-      await updateDoc(reqRef, { status: "Approved" });
-      alert("Request Approved Successfully!");
-    } else {
-      if (req.type === "WITHDRAW") {
-        const tx = {
-          text: `Withdrawal Rejected & Refunded`,
-          amount: `+₹${req.amount}`,
-          date: formatDateTime(new Date())
-        };
-        await updateDoc(userRef, {
-          wallet: increment(req.amount),
-          transactions: arrayUnion(tx)
-        });
-      }
-      await updateDoc(reqRef, { status: "Rejected" });
-      alert("Request Rejected.");
+    } catch (error) {
+      alert("Error processing request: " + error.message);
+    } finally {
+      setProcessingReqId(null);
     }
   };
 
@@ -1464,7 +1506,7 @@ export default function Home() {
               <div className={`border p-4 rounded-xl space-y-1.5 ${subCardBg}`}>
                 <p className={`text-sm font-bold ${headingText}`}>2. Bonus Wallet vs Withdrawable Wallet</p>
                 <p className={`text-xs ${mutedText} leading-relaxed`}>
-                  <strong className={titleText}>Bonus Wallet</strong> (UID lock ₹50 + Referral ₹50 = ₹100 tak) sirf <strong className={titleText}>match entry fees</strong> mein deduct hota hai. <strong className={titleText}>Withdrawable Wallet</strong> se aap minimum <strong className={titleText}>₹30</strong> UPI mein nikaal sakte hain.
+                  <strong className={titleText}>Bonus Wallet</strong> (₹50 UID + ₹50 Referral = ₹100 tak) sirf <strong className={titleText}>match entry fees</strong> mein deduct hota hai. <strong className={titleText}>Withdrawable Wallet</strong> se aap minimum <strong className={titleText}>₹30</strong> UPI mein nikaal sakte hain.
                 </p>
               </div>
 
@@ -2390,7 +2432,6 @@ export default function Home() {
 
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-5">
-          {/* 📊 Top Hisaab Summary Bar (Hinglish) */}
           <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-2xl border ${cardBg}`}>
             <div className={`p-3.5 rounded-xl border ${subCardBg}`}>
               <span className={`text-[11px] block ${mutedText}`}>Aaya Hua Paisa (Approved Deposits)</span>
@@ -2775,6 +2816,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {walletRequests.map(req => {
                       const reqDate = formatDateTime(req.createdAt);
+                      const isBusy = processingReqId === req.id;
                       return (
                         <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
                           <div className="flex justify-between gap-2">
@@ -2790,11 +2832,19 @@ export default function Home() {
                           )}
                           {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
                           <div className="flex gap-2 pt-1">
-                            <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                              Approve
+                            <button
+                              disabled={isBusy}
+                              onClick={() => handleProcessRequest(req, "APPROVE")}
+                              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-600 text-white font-bold py-1.5 rounded cursor-pointer"
+                            >
+                              {isBusy ? "Processing..." : "Approve"}
                             </button>
-                            <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                              Reject
+                            <button
+                              disabled={isBusy}
+                              onClick={() => handleProcessRequest(req, "REJECT")}
+                              className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-600 text-white font-bold py-1.5 rounded cursor-pointer"
+                            >
+                              {isBusy ? "Processing..." : "Reject"}
                             </button>
                           </div>
                         </div>
