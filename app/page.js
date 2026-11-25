@@ -11,7 +11,6 @@ import {
 import { 
   getFirestore, 
   doc, 
-  getDoc, 
   getDocs,
   setDoc, 
   updateDoc,
@@ -106,6 +105,7 @@ export default function Home() {
   const [approvedWithdrawals, setApprovedWithdrawals] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
   const [processingReqId, setProcessingReqId] = useState(null);
+  const [joiningMatchId, setJoiningMatchId] = useState(null);
 
   // Admin Room ID & Cancel States
   const [selectedMatchId, setSelectedMatchId] = useState("");
@@ -1077,77 +1077,123 @@ export default function Home() {
     }
   };
 
+  // 🔒 Double-join, slot overflow & duplicate entry fee deduction se bachne ke liye Transaction
   const handleJoinMatch = async (match) => {
+    if (!user?.uid || !match?.id) return;
+    if (joiningMatchId === match.id) return;
+
     if (!userData?.freeFireUid || !userData?.freeFireName) {
       alert("Match join karne ke liye pehle apni asli Free Fire UID aur IGN save karein!");
       setShowUidModal(true);
       return;
     }
 
+    setJoiningMatchId(match.id);
     const matchRef = doc(db, "tournaments", match.id);
-    const freshSnap = await getDoc(matchRef);
-    const freshMatch = freshSnap.exists() ? freshSnap.data() : match;
-
-    if (normalizeMatchStatus(freshMatch.status) === "Completed") {
-      return alert("Yeh match complete ho chuka hai!");
-    }
-
-    if (isPlayerKickedFromMatch(freshMatch, user.uid, userData.freeFireUid)) {
-      return alert("⚠️ Aapko is match se remove/block kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein.");
-    }
-
-    if (freshMatch.players?.some(p => p.uid === user.uid || (userData.freeFireUid && String(p.ffUid || "").trim() === String(userData.freeFireUid).trim()))) {
-      return alert("Aap pehle hi is match mein join ho chuke hain!");
-    }
-
-    const slotLimit = Number(freshMatch.maxPlayers) || 48;
-    if ((freshMatch.players?.length || 0) >= slotLimit) {
-      return alert(`Match Full! Maximum ${slotLimit} players allowed hain.`);
-    }
-
-    const feeAmt = Number(freshMatch.entryFee) || 0;
-    const currentMainWallet = Number(userData.wallet) || 0;
-    const currentBonusWallet = Number(userData.bonusWallet) || 0;
-    const totalAvailable = currentMainWallet + currentBonusWallet;
-
-    if (feeAmt > 0 && totalAvailable < feeAmt) {
-      alert("Bonus + Main Wallet mein balance kam hai! Pehle Add Money karein.");
-      setActiveTab("wallet");
-      setWalletMode("add");
-      return;
-    }
-
-    const deductedFromBonus = feeAmt > 0 ? Math.min(currentBonusWallet, feeAmt) : 0;
-    const deductedFromMain = feeAmt > 0 ? feeAmt - deductedFromBonus : 0;
-
-    const newBonusWallet = currentBonusWallet - deductedFromBonus;
-    const newMainWallet = currentMainWallet - deductedFromMain;
-
     const userRef = doc(db, "users", user.uid);
-    const parts = [];
-    if (deductedFromBonus > 0) parts.push(`₹${deductedFromBonus} Bonus`);
-    if (deductedFromMain > 0) parts.push(`₹${deductedFromMain} Wallet`);
 
-    const joinTx = {
-      text: `Joined Match: ${freshMatch.title}${parts.length > 0 ? ` (${parts.join(" + ")})` : ""}`,
-      amount: feeAmt > 0 ? `-₹${feeAmt}` : `FREE`,
-      date: formatDateTime(new Date())
-    };
+    try {
+      const result = await runTransaction(db, async (transaction) => {
+        const matchSnap = await transaction.get(matchRef);
+        const userSnap = await transaction.get(userRef);
 
-    await updateDoc(userRef, { 
-      wallet: newMainWallet,
-      bonusWallet: newBonusWallet,
-      transactions: arrayUnion(joinTx)
-    });
-    await updateDoc(matchRef, {
-      players: arrayUnion({
-        uid: user.uid,
-        ffUid: userData.freeFireUid,
-        ffName: userData.freeFireName
-      })
-    });
+        if (!matchSnap.exists()) {
+          return { type: "ALERT", message: "Match nahi mila!" };
+        }
+        if (!userSnap.exists()) {
+          return { type: "ALERT", message: "User profile nahi mili!" };
+        }
 
-    alert("Match Joined Successfully!");
+        const freshMatch = matchSnap.data();
+        const freshUser = userSnap.data();
+
+        const cleanFfUid = String(freshUser.freeFireUid || userData.freeFireUid || "").trim();
+        const cleanFfName = String(freshUser.freeFireName || userData.freeFireName || "").trim();
+
+        if (!cleanFfUid || !cleanFfName) {
+          return { type: "NEED_UID", message: "Match join karne ke liye pehle apni asli Free Fire UID aur IGN save karein!" };
+        }
+
+        if (normalizeMatchStatus(freshMatch.status) === "Completed") {
+          return { type: "ALERT", message: "Yeh match complete ho chuka hai!" };
+        }
+
+        if (isPlayerKickedFromMatch(freshMatch, user.uid, cleanFfUid)) {
+          return { type: "ALERT", message: "⚠️ Aapko is match se remove/block kiya gaya hai. Dobara join karne ke liye Admin se Allow Back karwayein." };
+        }
+
+        const alreadyInMatch = (freshMatch.players || []).some(
+          (p) =>
+            p.uid === user.uid ||
+            (cleanFfUid && String(p.ffUid || "").trim() === cleanFfUid)
+        );
+        if (alreadyInMatch) {
+          return { type: "ALERT", message: "Aap pehle hi is match mein join ho chuke hain!" };
+        }
+
+        const slotLimit = Number(freshMatch.maxPlayers) || 48;
+        const currentPlayers = freshMatch.players || [];
+        if (currentPlayers.length >= slotLimit) {
+          return { type: "ALERT", message: `Match Full! Maximum ${slotLimit} players allowed hain.` };
+        }
+
+        const feeAmt = Math.max(0, Number(freshMatch.entryFee) || 0);
+        const currentMainWallet = Math.max(0, Number(freshUser.wallet) || 0);
+        const currentBonusWallet = Math.max(0, Number(freshUser.bonusWallet) || 0);
+        const totalAvailable = currentMainWallet + currentBonusWallet;
+
+        if (feeAmt > 0 && totalAvailable < feeAmt) {
+          return { type: "LOW_BALANCE", message: "Bonus + Main Wallet mein balance kam hai! Pehle Add Money karein." };
+        }
+
+        const deductedFromBonus = feeAmt > 0 ? Math.min(currentBonusWallet, feeAmt) : 0;
+        const deductedFromMain = feeAmt > 0 ? feeAmt - deductedFromBonus : 0;
+
+        const newBonusWallet = currentBonusWallet - deductedFromBonus;
+        const newMainWallet = currentMainWallet - deductedFromMain;
+
+        const parts = [];
+        if (deductedFromBonus > 0) parts.push(`₹${deductedFromBonus} Bonus`);
+        if (deductedFromMain > 0) parts.push(`₹${deductedFromMain} Wallet`);
+
+        const joinTx = {
+          text: `Joined Match: ${freshMatch.title}${parts.length > 0 ? ` (${parts.join(" + ")})` : ""}`,
+          amount: feeAmt > 0 ? `-₹${feeAmt}` : `FREE`,
+          date: formatDateTime(new Date())
+        };
+
+        transaction.update(userRef, {
+          wallet: newMainWallet,
+          bonusWallet: newBonusWallet,
+          transactions: arrayUnion(joinTx)
+        });
+
+        transaction.update(matchRef, {
+          players: arrayUnion({
+            uid: user.uid,
+            ffUid: cleanFfUid,
+            ffName: cleanFfName
+          })
+        });
+
+        return { type: "SUCCESS", message: "Match Joined Successfully!" };
+      });
+
+      if (result.type === "NEED_UID") {
+        alert(result.message);
+        setShowUidModal(true);
+      } else if (result.type === "LOW_BALANCE") {
+        alert(result.message);
+        setActiveTab("wallet");
+        setWalletMode("add");
+      } else {
+        alert(result.message);
+      }
+    } catch (error) {
+      alert("Match join karne mein error aaya: " + error.message);
+    } finally {
+      setJoiningMatchId(null);
+    }
   };
 
   const handleAddMoneyRequest = async (e) => {
@@ -1847,6 +1893,7 @@ export default function Home() {
               const isFull = joinedCount >= slotLimit;
               const matchStatus = normalizeMatchStatus(match.status);
               const isCompleted = matchStatus === "Completed";
+              const isJoiningThis = joiningMatchId === match.id;
 
               const hasRoomId = match.roomId && match.roomId !== "Pending";
               const hasRoomPass = match.roomPass && match.roomPass !== "Pending";
@@ -1942,10 +1989,11 @@ export default function Home() {
                       </span>
                     ) : (
                       <button 
+                        disabled={isJoiningThis}
                         onClick={() => handleJoinMatch(match)} 
-                        className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-bold px-5 py-2 rounded-lg text-sm cursor-pointer"
+                        className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-slate-600 text-slate-950 font-bold px-5 py-2 rounded-lg text-sm cursor-pointer transition"
                       >
-                        Join Now
+                        {isJoiningThis ? "Joining..." : "Join Now"}
                       </button>
                     )}
                   </div>
