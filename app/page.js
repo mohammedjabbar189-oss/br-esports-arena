@@ -61,6 +61,7 @@ const normalizeMatchStatus = (status) => {
 export default function Home() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
+  const [allUsersMap, setAllUsersMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   const [adminSection, setAdminSection] = useState("matches");
@@ -69,8 +70,8 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(true);
 
   // 🔍 Match Filters & Search States
-  const [feeFilter, setFeeFilter] = useState("ALL"); // "ALL" | "FREE" | "PAID"
-  const [statusFilter, setStatusFilter] = useState("ACTIVE_ALL"); // "ACTIVE_ALL" | "Upcoming" | "Live" | "Completed"
+  const [feeFilter, setFeeFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ACTIVE_ALL");
   const [matchSearch, setMatchSearch] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
 
@@ -101,6 +102,7 @@ export default function Home() {
   const [tournaments, setTournaments] = useState([]);
   const [winnersBoard, setWinnersBoard] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
+  const [approvedDeposits, setApprovedDeposits] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
 
   // Admin Room ID & Cancel States
@@ -146,7 +148,6 @@ export default function Home() {
     : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200";
   const borderDivider = isDarkMode ? "border-slate-800" : "border-slate-300";
 
-  // 📋 One-Click Copy Helper for Room ID / Password
   const handleCopyCredential = async (value, keyId, label) => {
     if (!value) return;
     try {
@@ -160,7 +161,6 @@ export default function Home() {
     }
   };
 
-  // Load saved theme preference & capture ?ref=CODE from URL
   useEffect(() => {
     try {
       const savedTheme = localStorage.getItem("br_esports_theme");
@@ -201,7 +201,6 @@ export default function Home() {
     });
   };
 
-  // ✅ Save one-time onboarding flags in Firestore so refresh/re-login doesn't repeat them
   const markFairPlayAccepted = async () => {
     setHasAcceptedFairPlayNotice(true);
     setUserData((prev) => (prev ? { ...prev, fairPlayAccepted: true } : prev));
@@ -234,14 +233,12 @@ export default function Home() {
     }
   };
 
-  // 🏆 Live Prize Calculation Helper
   const parsedBooyah = Math.max(0, Number(booyahAmount) || 0);
   const parsedKills = Math.max(0, Number(killsCount) || 0);
   const parsedPerKill = Math.max(0, Number(perKillRate) || 0);
   const killsTotal = parsedKills * parsedPerKill;
   const calculatedTotalPrize = parsedBooyah + killsTotal;
 
-  // 🚫 Helper: Check if user is removed/blocked from this match (by auth uid OR freeFireUid)
   const isPlayerKickedFromMatch = (match, currentAuthUid, currentFfUid) => {
     const kickedList = match?.kickedPlayers || [];
     const cleanFfUid = String(currentFfUid || "").trim();
@@ -252,7 +249,6 @@ export default function Home() {
     });
   };
 
-  // ⏰ Universal Helper function for 12-hour format with AM/PM
   const formatDateTime = (input) => {
     if (!input) return "";
     let dateObj;
@@ -276,7 +272,6 @@ export default function Home() {
     });
   };
 
-  // ✅ Ascending order helper for tournaments (pehle create kiya hua match upar)
   const getCreatedAtTime = (createdAt) => {
     if (!createdAt) return 0;
     if (typeof createdAt === "object" && typeof createdAt.seconds === "number") {
@@ -293,7 +288,6 @@ export default function Home() {
     (a, b) => getCreatedAtTime(a.createdAt) - getCreatedAtTime(b.createdAt)
   );
 
-  // 🔍 Filtered Tournaments based on Fee Filter, Status Filter & Search Query
   const filteredTournaments = sortedTournaments.filter((match) => {
     const currentStatus = normalizeMatchStatus(match.status);
     const fee = Number(match.entryFee) || 0;
@@ -317,10 +311,31 @@ export default function Home() {
     return true;
   });
 
-  // ✅ Descending order for winners scoreboard (latest win upar)
   const sortedWinnersBoard = [...(winnersBoard || [])].sort(
     (a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
   );
+
+  // 📊 Helper: Player summary (Approved Deposits, Current Wallet + Bonus, Joined Matches Count)
+  const getPlayerSummary = (playerUid) => {
+    const profile = allUsersMap[playerUid] || (playerUid === user?.uid ? userData : null);
+    const mainBal = Number(profile?.wallet) || 0;
+    const bonusBal = Number(profile?.bonusWallet) || 0;
+
+    const approvedDepositSum = approvedDeposits
+      .filter((d) => d.userId === playerUid)
+      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+    const joinedMatchesCount = sortedTournaments.filter((m) =>
+      (m.players || []).some((p) => p.uid === playerUid)
+    ).length;
+
+    return {
+      mainBal,
+      bonusBal,
+      approvedDepositSum,
+      joinedMatchesCount,
+    };
+  };
 
   const handleDeleteScoreboardEntry = async (entryId) => {
     if (!isAdmin) return alert("Unauthorized!");
@@ -360,6 +375,7 @@ export default function Home() {
 
   useEffect(() => {
     let unsubscribeUser = () => {};
+    let unsubscribeAllUsers = () => {};
     let unsubscribeTournaments = () => {};
     let unsubscribeWinners = () => {};
     let unsubscribeRequests = () => {};
@@ -388,7 +404,6 @@ export default function Home() {
               data.refCode = newCode;
             }
 
-            // ✅ Purane UID-locked users ko ek baar ₹50 Bonus Wallet (Match Entry Only)
             if (data.freeFireUid && !data.uidLockBonusGiven) {
               patchUpdates.bonusWallet = increment(UID_LOCK_BONUS);
               patchUpdates.uidLockBonusGiven = true;
@@ -446,13 +461,25 @@ export default function Home() {
         });
 
         if (currentUser.email === ADMIN_EMAIL) {
+          unsubscribeAllUsers = onSnapshot(collection(db, "users"), (snapshot) => {
+            const map = {};
+            snapshot.docs.forEach((d) => {
+              map[d.id] = d.data();
+            });
+            setAllUsersMap(map);
+          });
+
           unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             const pendingList = list.filter(r => r.status === "Pending");
+            const approvedAddList = list.filter(r => r.type === "ADD" && r.status === "Approved");
             setWalletRequests(sortRequestsList(pendingList));
+            setApprovedDeposits(sortRequestsList(approvedAddList));
           });
         } else {
+          setAllUsersMap({});
           setWalletRequests([]);
+          setApprovedDeposits([]);
         }
 
         const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
@@ -464,11 +491,13 @@ export default function Home() {
       } else {
         setUser(null);
         setUserData(null);
+        setAllUsersMap({});
         setHasAcceptedFairPlayNotice(false);
         setFairPlayChecked(false);
         setHasPassedIntroGuide(false);
         setShowUidModal(false);
         setWalletRequests([]);
+        setApprovedDeposits([]);
         setMyRequests([]);
       }
       setLoading(false);
@@ -487,6 +516,7 @@ export default function Home() {
     return () => {
       unsubscribeAuth();
       unsubscribeUser();
+      if (unsubscribeAllUsers) unsubscribeAllUsers();
       unsubscribeTournaments();
       unsubscribeWinners();
       unsubscribeRequests();
@@ -505,7 +535,6 @@ export default function Home() {
 
   const handleLogout = () => signOut(auth);
 
-  // 🎁 Referral Bonus Claim Function (+₹50 Bonus Wallet Dono Ko)
   const claimReferralBonus = async (codeToApply, verifiedFfUid, verifiedFfName = "") => {
     const cleanCode = String(codeToApply || "").trim().toUpperCase();
     if (!cleanCode || !user || !userData) return false;
@@ -520,7 +549,6 @@ export default function Home() {
       return false;
     }
 
-    // Anti-Fraud 1: Same browser/device par pehle claim ho chuka hai toh block
     try {
       if (localStorage.getItem("br_ref_claimed_device") === "true") {
         alert("⚠️ Is device par referral bonus pehle hi claim ho chuka hai.");
@@ -530,7 +558,6 @@ export default function Home() {
       // ignore storage errors
     }
 
-    // Anti-Fraud 2: Same Free Fire UID kisi aur account mein pehle se use toh nahi hui
     const cleanUid = String(verifiedFfUid || userData.freeFireUid || "").trim();
     if (!/^\d{8,12}$/.test(cleanUid)) {
       alert("⚠️ Referral bonus ke liye valid 8–12 digit Free Fire UID zaroori hai.");
@@ -578,7 +605,6 @@ export default function Home() {
       const nowStr = formatDateTime(new Date());
       const referredName = verifiedFfName || freshCurrent.freeFireName || freshCurrent.name || "Friend";
 
-      // Referrer ko ₹50 Bonus Wallet mein (sirf match entry ke liye)
       transaction.update(referrerUserRef, {
         bonusWallet: increment(REFERRAL_SPLIT_BONUS),
         transactions: arrayUnion({
@@ -588,7 +614,6 @@ export default function Home() {
         }),
       });
 
-      // Naye user ko bhi ₹50 Bonus Wallet mein (sirf match entry ke liye)
       transaction.update(currentUserRef, {
         bonusWallet: increment(REFERRAL_SPLIT_BONUS),
         referredBy: referrerUid,
@@ -635,7 +660,6 @@ export default function Home() {
     }
   };
 
-  // 🔒 Save & Lock FF UID + Give ₹50 UID Lock Bonus (Bonus Wallet - Match Entry Only)
   const saveFreeFireDetails = async (e) => {
     e.preventDefault();
 
@@ -743,7 +767,6 @@ export default function Home() {
     setActiveTab("tournaments");
   };
 
-  // 🔄 Admin Match Status Update (Upcoming / Live / Completed)
   const handleChangeMatchStatus = async (matchId, nextStatus) => {
     if (!isAdmin) return alert("Unauthorized!");
     if (!matchId) return;
@@ -992,7 +1015,6 @@ export default function Home() {
     }
   };
 
-  // 🎮 Join Match: Pehle Bonus Wallet se entry fee deduct, bacha hua Main/Withdraw Wallet se
   const handleJoinMatch = async (match) => {
     if (!userData?.freeFireUid || !userData?.freeFireName) {
       alert("Match join karne ke liye pehle apni asli Free Fire UID aur IGN save karein!");
@@ -1117,7 +1139,6 @@ export default function Home() {
     }
   };
 
-  // 💸 Withdraw sirf Main/Withdrawable Wallet (`userData.wallet`) se hoga
   const handleWithdrawRequest = async (e) => {
     e.preventDefault();
     if (submittingRequest) return;
@@ -1155,7 +1176,6 @@ export default function Home() {
     }
   };
 
-  // 📜 Shared Terms & Conditions + Privacy Policy Modal Component
   const renderLegalModal = () => {
     if (!legalModal) return null;
     const isTerms = legalModal === "terms";
@@ -1292,7 +1312,6 @@ export default function Home() {
     );
   }
 
-  // 🛡️ Step 0 After Google Login: Fair-Play & Skill Platform Notice (Saved once in Firestore)
   if (userData && !userData.freeFireUid && !hasAcceptedFairPlayNotice) {
     return (
       <main className={`min-h-screen ${pageBg} flex items-center justify-center p-4`}>
@@ -1383,7 +1402,6 @@ export default function Home() {
     );
   }
 
-  // 📖 After Fair-Play OK: Show How to Play Once (Saved in Firestore on Skip / Next)
   if (userData && !userData.freeFireUid && !hasPassedIntroGuide) {
     return (
       <main className={`min-h-screen ${pageBg} py-8 px-4`}>
@@ -1491,7 +1509,6 @@ export default function Home() {
     <main className={`min-h-screen ${pageBg} p-4 transition-colors duration-200`}>
       {renderLegalModal()}
 
-      {/* 🔥 Clean Header with ID / Set UID & Live Support Link Right Next to It */}
       <header className={`flex flex-wrap justify-between items-center border-b ${borderDivider} pb-4 mb-6 gap-3`}>
         <div className="flex items-center gap-3">
           <span className="text-2xl">🎮</span>
@@ -1550,7 +1567,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Optional UID Setup Modal (Accessible anytime later) */}
       {showUidModal && userData && !userData.freeFireUid && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className={`max-w-md w-full border ${cardBg} p-6 rounded-2xl shadow-2xl space-y-4`}>
@@ -1607,7 +1623,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* 🔥 Clean Rules Section */}
       <div className={`${isDarkMode ? "bg-amber-950/40 border-amber-600/50 text-amber-200" : "bg-amber-50 border-amber-300 text-amber-900"} border p-3 rounded-lg mb-6 text-sm`}>
         <span>🔥 <b>Rules:</b> Sabhi matches <b>Per Kill</b> basis par chalenge (rate har match ke hisaab se alag-alag rahega). Bonus Wallet sirf match entry fee ke liye hai.</span>
       </div>
@@ -1684,7 +1699,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* 🔍 Match Filters & Search Bar */}
           <div className={`border p-4 rounded-xl space-y-3 ${cardBg}`}>
             <div className="flex flex-col md:flex-row gap-3 justify-between items-stretch md:items-center">
               <div className="flex flex-wrap items-center gap-2">
@@ -2095,7 +2109,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* 🎁 Refer & Earn Card (₹50 UID + ₹50 Referral = ₹100 Bonus Wallet — Match Entry Only) */}
           <div className={`border p-5 sm:p-6 rounded-2xl space-y-4 ${cardBg}`}>
             <div className="flex flex-wrap justify-between items-center gap-2">
               <div>
@@ -2357,7 +2370,6 @@ export default function Home() {
 
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-5">
-          {/* ⚡ Quick Admin Sub-Tabs so everything isn't stacked in one long scroll */}
           <div className={`flex flex-wrap gap-2 p-2 rounded-xl border ${subCardBg}`}>
             <button
               type="button"
@@ -2393,7 +2405,7 @@ export default function Home() {
                 adminSection === "requests" ? "bg-yellow-500 text-slate-950" : tabInactive
               }`}
             >
-              🔔 Requests ({walletRequests.length})
+              🔔 Requests ({walletRequests.length} Pending • {approvedDeposits.length} Approved)
             </button>
           </div>
 
@@ -2463,7 +2475,6 @@ export default function Home() {
                   </form>
                 </div>
 
-                {/* 🔄 Manage Existing Match Status (Upcoming / Live / Completed) */}
                 <div className={`pt-4 border-t ${borderDivider} space-y-2.5`}>
                   <h3 className={`text-sm font-bold ${headingText}`}>🔄 Match Status Control (Upcoming / Live / Completed)</h3>
                   {sortedTournaments.length === 0 ? (
@@ -2532,7 +2543,7 @@ export default function Home() {
 
           {adminSection === "players" && (
             <div className={`border p-6 rounded-xl ${cardBg}`}>
-              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players Verification List</h2>
+              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players & Wallet Summary</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortedTournaments.length === 0 ? (
                   <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
@@ -2545,22 +2556,32 @@ export default function Home() {
                       {(!m.players || m.players.length === 0) ? (
                         <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
                       ) : (
-                        <div className="space-y-1">
-                          {m.players.map((p, i) => (
-                            <div key={i} className={`flex justify-between items-center gap-2 text-[11px] font-mono px-2 py-1 rounded border ${cardBg}`}>
-                              <span className={`truncate ${titleText}`}>{i+1}. {p.ffName}</span>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <span className="text-green-500">UID: {p.ffUid}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemovePlayerFromMatch(m.id, p)}
-                                  className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
-                                >
-                                  Remove
-                                </button>
+                        <div className="space-y-1.5">
+                          {m.players.map((p, i) => {
+                            const sum = getPlayerSummary(p.uid);
+                            return (
+                              <div key={i} className={`p-2 rounded border space-y-1 ${cardBg}`}>
+                                <div className="flex justify-between items-center gap-2 text-[11px] font-mono">
+                                  <span className={`truncate font-bold ${titleText}`}>{i+1}. {p.ffName}</span>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="text-green-500">UID: {p.ffUid}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemovePlayerFromMatch(m.id, p)}
+                                      className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className={`flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] ${mutedText}`}>
+                                  <span>Deposited: <strong className="text-emerald-500">₹{sum.approvedDepositSum}</strong></span>
+                                  <span>Left: <strong className={titleText}>₹{sum.mainBal}</strong> + <strong className={headingText}>₹{sum.bonusBal} Bonus</strong></span>
+                                  <span>Matches Joined: <strong className={titleText}>{sum.joinedMatchesCount}</strong></span>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
 
@@ -2703,47 +2724,71 @@ export default function Home() {
           )}
 
           {adminSection === "requests" && (
-            <div className={`border border-yellow-500/50 p-6 rounded-xl ${cardBg}`}>
-              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>🔔 Pending Payment Requests</h2>
-              {walletRequests.length === 0 ? (
-                <p className={`text-xs ${subtleText} py-4`}>Koi pending request nahi hai.</p>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {walletRequests.map(req => {
-                    const reqDate = formatDateTime(req.createdAt);
-                    return (
-                      <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
-                        <div className="flex justify-between gap-2">
-                          <span className={`font-bold ${headingText} truncate`}>{req.userName} ({req.email})</span>
-                          <span className={`font-bold shrink-0 ${req.type === 'ADD' ? 'text-green-500' : 'text-blue-500'}`}>
-                            {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
-                          </span>
+            <div className="space-y-6">
+              <div className={`border border-yellow-500/50 p-6 rounded-xl ${cardBg}`}>
+                <h2 className={`text-lg font-bold mb-3 ${headingText}`}>🔔 Pending Payment Requests ({walletRequests.length})</h2>
+                {walletRequests.length === 0 ? (
+                  <p className={`text-xs ${subtleText} py-4`}>Koi pending request nahi hai.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {walletRequests.map(req => {
+                      const reqDate = formatDateTime(req.createdAt);
+                      return (
+                        <div key={req.id} className={`border p-3 rounded-lg text-xs space-y-2 ${subCardBg}`}>
+                          <div className="flex justify-between gap-2">
+                            <span className={`font-bold ${headingText} truncate`}>{req.userName} ({req.email})</span>
+                            <span className={`font-bold shrink-0 ${req.type === 'ADD' ? 'text-green-500' : 'text-blue-500'}`}>
+                              {req.type === 'ADD' ? 'ADD MONEY' : 'WITHDRAW'} : ₹{req.amount}
+                            </span>
+                          </div>
+                          {req.type === 'ADD' ? (
+                            <p className={`${mutedText} font-mono`}>UTR: {req.utr}</p>
+                          ) : (
+                            <p className={`${mutedText} font-mono`}>UPI: {req.upiId}</p>
+                          )}
+                          {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
+                          <div className="flex gap-2 pt-1">
+                            <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                              Approve
+                            </button>
+                            <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
+                              Reject
+                            </button>
+                          </div>
                         </div>
-                        {req.type === 'ADD' ? (
-                          <p className={`${mutedText} font-mono`}>UTR: {req.utr}</p>
-                        ) : (
-                          <p className={`${mutedText} font-mono`}>UPI: {req.upiId}</p>
-                        )}
-                        {reqDate && <p className={`text-[10px] ${subtleText}`}>{reqDate}</p>}
-                        <div className="flex gap-2 pt-1">
-                          <button onClick={() => handleProcessRequest(req, "APPROVE")} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                            Approve
-                          </button>
-                          <button onClick={() => handleProcessRequest(req, "REJECT")} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded cursor-pointer">
-                            Reject
-                          </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className={`border border-emerald-500/40 p-6 rounded-xl ${cardBg}`}>
+                <h2 className="text-lg font-bold mb-3 text-emerald-500">✅ Approved Deposits Log ({approvedDeposits.length})</h2>
+                {approvedDeposits.length === 0 ? (
+                  <p className={`text-xs ${subtleText} py-4`}>Abhi koi approved deposit nahi hai.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
+                    {approvedDeposits.map(dep => {
+                      const depDate = formatDateTime(dep.createdAt);
+                      return (
+                        <div key={dep.id} className={`border p-3 rounded-lg text-xs space-y-1 ${subCardBg}`}>
+                          <div className="flex justify-between gap-2">
+                            <span className={`font-bold truncate ${titleText}`}>{dep.userName} ({dep.email})</span>
+                            <span className="font-extrabold text-emerald-500 shrink-0">+₹{dep.amount}</span>
+                          </div>
+                          <p className={`${mutedText} font-mono`}>UTR: {dep.utr}</p>
+                          {depDate && <p className={`text-[10px] ${subtleText}`}>{depDate}</p>}
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      {/* 💬 Floating Live Support Button */}
       <a
         href="https://tawk.to/chat/6af97899375b123c45407054/1k7f7u6u3?layout=modern"
         target="_blank"
@@ -2754,7 +2799,6 @@ export default function Home() {
         <span className="text-sm">Live Support</span>
       </a>
 
-      {/* 📜 Terms & Conditions + Privacy Policy Footer */}
       <footer className={`mt-12 py-6 border-t ${borderDivider} text-center text-xs ${mutedText} px-4 space-y-2`}>
         <div className="flex justify-center items-center gap-4 flex-wrap">
           <button
