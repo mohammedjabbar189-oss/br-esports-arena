@@ -61,6 +61,7 @@ export default function Home() {
   const [user, setUser] = useState(null);
   const [userData, setUserData] = useState(null);
   const [allUsersMap, setAllUsersMap] = useState({});
+  const [allWalletRequests, setAllWalletRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("tournaments");
   const [adminSection, setAdminSection] = useState("matches");
@@ -359,26 +360,120 @@ export default function Home() {
   const netAdminBalance =
     totalApprovedDepositsAmt - totalApprovedWithdrawalsAmt - totalPrizesSentAmt;
 
-  const getPlayerSummary = (playerUid) => {
-    const profile = allUsersMap[playerUid] || (playerUid === user?.uid ? userData : null);
-    const mainBal = Number(profile?.wallet) || 0;
-    const bonusBal = Number(profile?.bonusWallet) || 0;
+  const getPlayerAccountDetails = (playerUid, fallbackFfUid = "", fallbackFfName = "") => {
+    const uidKey = String(playerUid || "").trim();
+    const profile =
+      (uidKey && allUsersMap[uidKey]) ||
+      (uidKey && uidKey === user?.uid ? userData : null) ||
+      Object.values(allUsersMap).find(
+        (u) =>
+          (fallbackFfUid && String(u.freeFireUid || "").trim() === String(fallbackFfUid).trim()) ||
+          (fallbackFfName && String(u.freeFireName || "").trim().toLowerCase() === String(fallbackFfName).trim().toLowerCase())
+      ) ||
+      null;
 
-    const approvedDepositSum = approvedDeposits
-      .filter((d) => d.userId === playerUid)
+    const resolvedUid =
+      uidKey ||
+      Object.keys(allUsersMap).find((k) => allUsersMap[k] === profile) ||
+      "";
+
+    const mainBal = Math.max(0, Number(profile?.wallet) || 0);
+    const bonusBal = Math.max(0, Number(profile?.bonusWallet) || 0);
+    const totalRemainingBalance = mainBal + bonusBal;
+
+    const userReqs = resolvedUid
+      ? allWalletRequests.filter((r) => r.userId === resolvedUid)
+      : [];
+
+    const approvedDepositSum = userReqs
+      .filter((r) => r.type === "ADD" && r.status === "Approved")
       .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
 
+    const pendingDepositSum = userReqs
+      .filter((r) => r.type === "ADD" && r.status === "Pending")
+      .reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+
+    const withdrawnAmt = userReqs
+      .filter((r) => r.type === "WITHDRAW" && r.status === "Approved")
+      .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+
+    const pendingWithdrawSum = userReqs
+      .filter((r) => r.type === "WITHDRAW" && r.status === "Pending")
+      .reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
+
+    const prizesWonSum = sortedWinnersBoard
+      .filter((item) => {
+        if (resolvedUid && item.playerUid === resolvedUid) return true;
+        const cleanFf = String(fallbackFfUid || profile?.freeFireUid || "").trim();
+        return cleanFf && String(item.ffUid || "").trim() === cleanFf;
+      })
+      .reduce((sum, item) => sum + (Number(item.totalPrize) || 0), 0);
+
     const joinedMatchesCount = sortedTournaments.filter((m) =>
-      (m.players || []).some((p) => p.uid === playerUid)
+      (m.players || []).some((p) => {
+        if (resolvedUid && p.uid === resolvedUid) return true;
+        const cleanFf = String(fallbackFfUid || profile?.freeFireUid || "").trim();
+        return cleanFf && String(p.ffUid || "").trim() === cleanFf;
+      })
     ).length;
 
     return {
+      resolvedUid,
+      profile,
+      ffUid: profile?.freeFireUid || fallbackFfUid || "N/A",
+      ffName: profile?.freeFireName || fallbackFfName || profile?.name || "Player",
+      email: profile?.email || "",
+      refCode: profile?.refCode || "",
       mainBal,
       bonusBal,
+      totalRemainingBalance,
       approvedDepositSum,
+      pendingDepositSum,
+      withdrawnAmt,
+      pendingWithdrawSum,
+      prizesWonSum,
       joinedMatchesCount,
+      transactions: Array.isArray(profile?.transactions) ? profile.transactions : [],
     };
   };
+
+  const matchedUidAccounts = (() => {
+    const cleanQ = String(activeUidSearch || "").trim().toLowerCase();
+    if (!cleanQ) return [];
+
+    const accountsMap = new Map();
+
+    Object.entries(allUsersMap).forEach(([uid, uData]) => {
+      const uUid = String(uData?.freeFireUid || "").toLowerCase();
+      const uName = String(uData?.freeFireName || "").toLowerCase();
+      const uAccountName = String(uData?.name || "").toLowerCase();
+      const uEmail = String(uData?.email || "").toLowerCase();
+      if (
+        uUid.includes(cleanQ) ||
+        uName.includes(cleanQ) ||
+        uAccountName.includes(cleanQ) ||
+        uEmail.includes(cleanQ)
+      ) {
+        const key = uData?.freeFireUid ? `ff-${uData.freeFireUid}` : `auth-${uid}`;
+        accountsMap.set(key, { uid, ffUid: uData?.freeFireUid || "", ffName: uData?.freeFireName || uData?.name || "Player" });
+      }
+    });
+
+    sortedTournaments.forEach((m) => {
+      (m.players || []).forEach((p) => {
+        if (playerMatchesUidQuery(p, cleanQ)) {
+          const key = p.ffUid ? `ff-${String(p.ffUid).trim()}` : `auth-${p.uid || p.ffName}`;
+          if (!accountsMap.has(key)) {
+            accountsMap.set(key, { uid: p.uid || "", ffUid: p.ffUid || "", ffName: p.ffName || "Player" });
+          }
+        }
+      });
+    });
+
+    return Array.from(accountsMap.values()).map((entry) =>
+      getPlayerAccountDetails(entry.uid, entry.ffUid, entry.ffName)
+    );
+  })();
 
   const handleDeleteScoreboardEntry = async (entryId) => {
     if (!isAdmin) return alert("Unauthorized!");
@@ -514,6 +609,7 @@ export default function Home() {
 
           unsubscribeRequests = onSnapshot(collection(db, "wallet_requests"), (snapshot) => {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setAllWalletRequests(list);
             const pendingList = list.filter(r => r.status === "Pending");
             const approvedAddList = list.filter(r => r.type === "ADD" && r.status === "Approved");
             const approvedWithdrawList = list.filter(r => r.type === "WITHDRAW" && r.status === "Approved");
@@ -523,6 +619,7 @@ export default function Home() {
           });
         } else {
           setAllUsersMap({});
+          setAllWalletRequests([]);
           setWalletRequests([]);
           setApprovedDeposits([]);
           setApprovedWithdrawals([]);
@@ -538,6 +635,7 @@ export default function Home() {
         setUser(null);
         setUserData(null);
         setAllUsersMap({});
+        setAllWalletRequests([]);
         setHasAcceptedFairPlayNotice(false);
         setFairPlayChecked(false);
         setHasPassedIntroGuide(false);
@@ -2779,7 +2877,7 @@ export default function Home() {
           {adminSection === "players" && (
             <div className={`border p-6 rounded-xl space-y-4 ${cardBg}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <h2 className={`text-lg font-bold ${headingText}`}>👥 Joined Players & Wallet Summary</h2>
+                <h2 className={`text-lg font-bold ${headingText}`}>👥 Joined Players & Account Summary</h2>
                 <form onSubmit={handleUidSearchSubmit} className="flex gap-2 w-full sm:w-auto">
                   <input
                     type="text"
@@ -2806,6 +2904,76 @@ export default function Home() {
                 </form>
               </div>
 
+              {activeUidSearch && (
+                <div className={`p-4 rounded-xl border space-y-3 ${subCardBg} border-yellow-500/40`}>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className={`text-sm font-extrabold ${headingText}`}>
+                      🧾 UID Account Report: "{activeUidSearch}" ({matchedUidAccounts.length})
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={handleClearUidSearch}
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded cursor-pointer ${tabInactive}`}
+                    >
+                      Clear Search
+                    </button>
+                  </div>
+
+                  {matchedUidAccounts.length === 0 ? (
+                    <p className={`text-xs ${mutedText}`}>Is UID ya IGN se koi player account nahi mila.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {matchedUidAccounts.map((acc, aIdx) => (
+                        <div key={`${acc.resolvedUid || "acc"}-${acc.ffUid}-${aIdx}`} className={`p-3.5 rounded-xl border space-y-2.5 ${cardBg}`}>
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <p className={`text-sm font-bold ${titleText}`}>{acc.ffName}</p>
+                              <p className="text-xs font-mono text-green-500">FF UID: {acc.ffUid}</p>
+                              {acc.email && <p className={`text-[10px] ${mutedText}`}>{acc.email}</p>}
+                            </div>
+                            <span className="text-[11px] font-bold bg-emerald-500/20 text-emerald-500 border border-emerald-500/40 px-2.5 py-1 rounded-full">
+                              Baki: ₹{acc.totalRemainingBalance}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Abhi Baki (Main)</span>
+                              <strong className="text-emerald-500">₹{acc.mainBal}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Baki Bonus</span>
+                              <strong className={headingText}>₹{acc.bonusBal}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Withdraw Hua</span>
+                              <strong className="text-blue-500">₹{acc.withdrawnAmt}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Deposit (Approved)</span>
+                              <strong className={titleText}>₹{acc.approvedDepositSum}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Pending Withdraw</span>
+                              <strong className="text-amber-400">₹{acc.pendingWithdrawSum}</strong>
+                            </div>
+                            <div className={`p-2 rounded border ${subCardBg}`}>
+                              <span className={`text-[10px] block ${mutedText}`}>Prize Jeeta</span>
+                              <strong className="text-emerald-400">₹{acc.prizesWonSum}</strong>
+                            </div>
+                          </div>
+
+                          <div className={`text-[11px] flex justify-between items-center pt-1 border-t ${borderDivider} ${mutedText}`}>
+                            <span>Joined Matches: <strong className={titleText}>{acc.joinedMatchesCount}</strong></span>
+                            {acc.refCode && <span>Ref Code: <strong className="font-mono">{acc.refCode}</strong></span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortedTournaments.length === 0 ? (
                   <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
@@ -2830,7 +2998,7 @@ export default function Home() {
                         ) : (
                           <div className="space-y-1.5">
                             {visiblePlayers.map((p, i) => {
-                              const sum = getPlayerSummary(p.uid);
+                              const sum = getPlayerAccountDetails(p.uid, p.ffUid, p.ffName);
                               const isHighlighted =
                                 Boolean(activeUidSearch) && playerMatchesUidQuery(p, activeUidSearch);
                               return (
@@ -2854,9 +3022,9 @@ export default function Home() {
                                     </div>
                                   </div>
                                   <div className={`flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] ${mutedText}`}>
-                                    <span>Deposited: <strong className="text-emerald-500">₹{sum.approvedDepositSum}</strong></span>
-                                    <span>Left: <strong className={titleText}>₹{sum.mainBal}</strong> + <strong className={headingText}>₹{sum.bonusBal} Bonus</strong></span>
-                                    <span>Matches Joined: <strong className={titleText}>{sum.joinedMatchesCount}</strong></span>
+                                    <span>Baki: <strong className="text-emerald-500">₹{sum.mainBal}</strong> + <strong className={headingText}>₹{sum.bonusBal} Bonus</strong></span>
+                                    <span>Withdraw Hua: <strong className="text-blue-500">₹{sum.withdrawnAmt}</strong></span>
+                                    <span>Deposit: <strong className={titleText}>₹{sum.approvedDepositSum}</strong></span>
                                   </div>
                                 </div>
                               );
