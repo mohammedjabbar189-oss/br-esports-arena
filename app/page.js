@@ -103,6 +103,7 @@ export default function Home() {
   const [winnersBoard, setWinnersBoard] = useState([]);
   const [walletRequests, setWalletRequests] = useState([]);
   const [approvedDeposits, setApprovedDeposits] = useState([]);
+  const [approvedWithdrawals, setApprovedWithdrawals] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
 
   // Admin Room ID & Cancel States
@@ -315,7 +316,22 @@ export default function Home() {
     (a, b) => getCreatedAtTime(b.createdAt) - getCreatedAtTime(a.createdAt)
   );
 
-  // 📊 Helper: Player summary (Approved Deposits, Current Wallet + Bonus, Joined Matches Count)
+  // 📊 Admin Top Summary Totals
+  const totalApprovedDepositsAmt = approvedDeposits.reduce(
+    (sum, d) => sum + (Number(d.amount) || 0),
+    0
+  );
+  const totalApprovedWithdrawalsAmt = approvedWithdrawals.reduce(
+    (sum, w) => sum + (Number(w.amount) || 0),
+    0
+  );
+  const totalPrizesSentAmt = sortedWinnersBoard.reduce(
+    (sum, item) => sum + (Number(item.totalPrize) || 0),
+    0
+  );
+  const netAdminBalance =
+    totalApprovedDepositsAmt - totalApprovedWithdrawalsAmt - totalPrizesSentAmt;
+
   const getPlayerSummary = (playerUid) => {
     const profile = allUsersMap[playerUid] || (playerUid === user?.uid ? userData : null);
     const mainBal = Number(profile?.wallet) || 0;
@@ -473,13 +489,16 @@ export default function Home() {
             const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             const pendingList = list.filter(r => r.status === "Pending");
             const approvedAddList = list.filter(r => r.type === "ADD" && r.status === "Approved");
+            const approvedWithdrawList = list.filter(r => r.type === "WITHDRAW" && r.status === "Approved");
             setWalletRequests(sortRequestsList(pendingList));
             setApprovedDeposits(sortRequestsList(approvedAddList));
+            setApprovedWithdrawals(sortRequestsList(approvedWithdrawList));
           });
         } else {
           setAllUsersMap({});
           setWalletRequests([]);
           setApprovedDeposits([]);
+          setApprovedWithdrawals([]);
         }
 
         const q = query(collection(db, "wallet_requests"), where("userId", "==", currentUser.uid));
@@ -498,6 +517,7 @@ export default function Home() {
         setShowUidModal(false);
         setWalletRequests([]);
         setApprovedDeposits([]);
+        setApprovedWithdrawals([]);
         setMyRequests([]);
       }
       setLoading(false);
@@ -2370,6 +2390,28 @@ export default function Home() {
 
       {activeTab === "admin" && isAdmin && (
         <div className="max-w-6xl mx-auto space-y-5">
+          {/* 📊 Top Hisaab Summary Bar (Hinglish) */}
+          <div className={`grid grid-cols-2 lg:grid-cols-4 gap-3 p-4 rounded-2xl border ${cardBg}`}>
+            <div className={`p-3.5 rounded-xl border ${subCardBg}`}>
+              <span className={`text-[11px] block ${mutedText}`}>Aaya Hua Paisa (Approved Deposits)</span>
+              <span className="text-xl font-extrabold text-emerald-500">₹{totalApprovedDepositsAmt}</span>
+            </div>
+            <div className={`p-3.5 rounded-xl border ${subCardBg}`}>
+              <span className={`text-[11px] block ${mutedText}`}>Nikaala Gaya Paisa (Approved Withdrawals)</span>
+              <span className="text-xl font-extrabold text-blue-500">₹{totalApprovedWithdrawalsAmt}</span>
+            </div>
+            <div className={`p-3.5 rounded-xl border ${subCardBg}`}>
+              <span className={`text-[11px] block ${mutedText}`}>Banta Hua Prize (Total Prizes Sent)</span>
+              <span className={`text-xl font-extrabold ${headingText}`}>₹{totalPrizesSentAmt}</span>
+            </div>
+            <div className={`p-3.5 rounded-xl border ${subCardBg}`}>
+              <span className={`text-[11px] block ${mutedText}`}>Net Hisaab (Dep - With - Prize)</span>
+              <span className={`text-xl font-extrabold ${netAdminBalance >= 0 ? "text-emerald-500" : "text-red-500"}`}>
+                ₹{netAdminBalance}
+              </span>
+            </div>
+          </div>
+
           <div className={`flex flex-wrap gap-2 p-2 rounded-xl border ${subCardBg}`}>
             <button
               type="button"
@@ -2405,7 +2447,7 @@ export default function Home() {
                 adminSection === "requests" ? "bg-yellow-500 text-slate-950" : tabInactive
               }`}
             >
-              🔔 Requests ({walletRequests.length} Pending • {approvedDeposits.length} Approved)
+              🔔 Requests ({walletRequests.length} Pending • {approvedDeposits.length + approvedWithdrawals.length} Approved)
             </button>
           </div>
 
@@ -2762,27 +2804,52 @@ export default function Home() {
                 )}
               </div>
 
-              <div className={`border border-emerald-500/40 p-6 rounded-xl ${cardBg}`}>
-                <h2 className="text-lg font-bold mb-3 text-emerald-500">✅ Approved Deposits Log ({approvedDeposits.length})</h2>
-                {approvedDeposits.length === 0 ? (
-                  <p className={`text-xs ${subtleText} py-4`}>Abhi koi approved deposit nahi hai.</p>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto pr-1">
-                    {approvedDeposits.map(dep => {
-                      const depDate = formatDateTime(dep.createdAt);
-                      return (
-                        <div key={dep.id} className={`border p-3 rounded-lg text-xs space-y-1 ${subCardBg}`}>
-                          <div className="flex justify-between gap-2">
-                            <span className={`font-bold truncate ${titleText}`}>{dep.userName} ({dep.email})</span>
-                            <span className="font-extrabold text-emerald-500 shrink-0">+₹{dep.amount}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className={`border border-emerald-500/40 p-6 rounded-xl ${cardBg}`}>
+                  <h2 className="text-lg font-bold mb-3 text-emerald-500">✅ Approved Deposits Log ({approvedDeposits.length})</h2>
+                  {approvedDeposits.length === 0 ? (
+                    <p className={`text-xs ${subtleText} py-4`}>Abhi koi approved deposit nahi hai.</p>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {approvedDeposits.map(dep => {
+                        const depDate = formatDateTime(dep.createdAt);
+                        return (
+                          <div key={dep.id} className={`border p-3 rounded-lg text-xs space-y-1 ${subCardBg}`}>
+                            <div className="flex justify-between gap-2">
+                              <span className={`font-bold truncate ${titleText}`}>{dep.userName} ({dep.email})</span>
+                              <span className="font-extrabold text-emerald-500 shrink-0">+₹{dep.amount}</span>
+                            </div>
+                            <p className={`${mutedText} font-mono`}>UTR: {dep.utr}</p>
+                            {depDate && <p className={`text-[10px] ${subtleText}`}>{depDate}</p>}
                           </div>
-                          <p className={`${mutedText} font-mono`}>UTR: {dep.utr}</p>
-                          {depDate && <p className={`text-[10px] ${subtleText}`}>{depDate}</p>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className={`border border-blue-500/40 p-6 rounded-xl ${cardBg}`}>
+                  <h2 className="text-lg font-bold mb-3 text-blue-500">💸 Approved Withdrawals Log ({approvedWithdrawals.length})</h2>
+                  {approvedWithdrawals.length === 0 ? (
+                    <p className={`text-xs ${subtleText} py-4`}>Abhi koi approved withdrawal nahi hai.</p>
+                  ) : (
+                    <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+                      {approvedWithdrawals.map(wd => {
+                        const wdDate = formatDateTime(wd.createdAt);
+                        return (
+                          <div key={wd.id} className={`border p-3 rounded-lg text-xs space-y-1 ${subCardBg}`}>
+                            <div className="flex justify-between gap-2">
+                              <span className={`font-bold truncate ${titleText}`}>{wd.userName} ({wd.email})</span>
+                              <span className="font-extrabold text-blue-500 shrink-0">-₹{wd.amount}</span>
+                            </div>
+                            <p className={`${mutedText} font-mono`}>UPI: {wd.upiId}</p>
+                            {wdDate && <p className={`text-[10px] ${subtleText}`}>{wdDate}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
