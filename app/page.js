@@ -68,10 +68,12 @@ export default function Home() {
   const [showQuickGuide, setShowQuickGuide] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
 
-  // 🔍 Match Filters & Search States
+  // 🔍 Match Filters & UID Search States
   const [feeFilter, setFeeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ACTIVE_ALL");
   const [matchSearch, setMatchSearch] = useState("");
+  const [uidSearchInput, setUidSearchInput] = useState("");
+  const [activeUidSearch, setActiveUidSearch] = useState("");
   const [copiedKey, setCopiedKey] = useState("");
 
   // Onboarding Disclaimer, How-To-Play & Optional UID Modal States
@@ -149,6 +151,24 @@ export default function Home() {
     ? "bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800"
     : "bg-white text-slate-700 border border-slate-300 hover:bg-slate-200";
   const borderDivider = isDarkMode ? "border-slate-800" : "border-slate-300";
+
+  const handleUidSearchSubmit = (e) => {
+    if (e) e.preventDefault();
+    setActiveUidSearch(uidSearchInput.trim());
+  };
+
+  const handleClearUidSearch = () => {
+    setUidSearchInput("");
+    setActiveUidSearch("");
+  };
+
+  const playerMatchesUidQuery = (player, queryStr) => {
+    const cleanQ = String(queryStr || "").trim().toLowerCase();
+    if (!cleanQ) return true;
+    const pUid = String(player?.ffUid || "").toLowerCase();
+    const pName = String(player?.ffName || "").toLowerCase();
+    return pUid.includes(cleanQ) || pName.includes(cleanQ);
+  };
 
   const handleCopyCredential = async (value, keyId, label) => {
     if (!value) return;
@@ -308,6 +328,13 @@ export default function Home() {
     if (qText) {
       const hay = `${match.title || ""} ${match.timing || ""} ${match.prizePool || ""} ${fee === 0 ? "free" : `₹${fee}`}`.toLowerCase();
       if (!hay.includes(qText)) return false;
+    }
+
+    if (activeUidSearch) {
+      const hasMatchingPlayer = (match.players || []).some((p) =>
+        playerMatchesUidQuery(p, activeUidSearch)
+      );
+      if (!hasMatchingPlayer) return false;
     }
 
     return true;
@@ -1852,34 +1879,89 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="flex gap-2 items-center">
-              <input
-                type="text"
-                placeholder="🔍 Match title, timing (e.g. 8:30 PM), ya rate se search karein..."
-                value={matchSearch}
-                onChange={(e) => setMatchSearch(e.target.value)}
-                className={`w-full border p-2.5 rounded-lg text-xs sm:text-sm ${inputBg}`}
-              />
-              {(matchSearch || feeFilter !== "ALL" || statusFilter !== "ACTIVE_ALL") && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="🔍 Match title, timing (e.g. 8:30 PM), ya rate se search karein..."
+                  value={matchSearch}
+                  onChange={(e) => setMatchSearch(e.target.value)}
+                  className={`w-full border p-2.5 rounded-lg text-xs sm:text-sm ${inputBg}`}
+                />
+                {matchSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setMatchSearch("")}
+                    className={`px-2.5 py-2.5 rounded-lg text-xs font-bold cursor-pointer shrink-0 transition ${tabInactive}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleUidSearchSubmit} className="flex gap-2 items-center">
+                <input
+                  type="text"
+                  placeholder="🆔 Player FF UID ya IGN se match khojein..."
+                  value={uidSearchInput}
+                  onChange={(e) => setUidSearchInput(e.target.value)}
+                  className={`w-full border p-2.5 rounded-lg text-xs sm:text-sm font-mono ${inputBg}`}
+                />
+                <button
+                  type="submit"
+                  className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 px-3.5 py-2.5 rounded-lg text-xs font-extrabold cursor-pointer shrink-0 transition"
+                >
+                  🔍 UID Search
+                </button>
+                {(uidSearchInput || activeUidSearch) && (
+                  <button
+                    type="button"
+                    onClick={handleClearUidSearch}
+                    className={`px-2.5 py-2.5 rounded-lg text-xs font-bold cursor-pointer shrink-0 transition ${tabInactive}`}
+                    title="Clear UID Search"
+                  >
+                    Reset
+                  </button>
+                )}
+              </form>
+            </div>
+
+            {(matchSearch || feeFilter !== "ALL" || statusFilter !== "ACTIVE_ALL" || activeUidSearch) && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  {activeUidSearch && (
+                    <span className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-2.5 py-1 rounded-full font-mono font-bold">
+                      🆔 UID Filter: {activeUidSearch}
+                    </span>
+                  )}
+                  <span className={mutedText}>
+                    Showing <strong>{filteredTournaments.length}</strong> match(es)
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setMatchSearch("");
                     setFeeFilter("ALL");
                     setStatusFilter("ACTIVE_ALL");
+                    handleClearUidSearch();
                   }}
-                  className={`px-3 py-2.5 rounded-lg text-xs font-bold cursor-pointer shrink-0 transition ${tabInactive}`}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold cursor-pointer transition ${tabInactive}`}
                 >
-                  Reset
+                  Clear All Filters
                 </button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {filteredTournaments.length === 0 ? (
             <div className={`text-center py-12 border rounded-xl ${cardBg}`}>
               <span className="text-4xl mb-2 block">🎮</span>
-              <p className={mutedText}>Is filter ya search ke mutabik koi match nahi mila.</p>
+              <p className={mutedText}>
+                {activeUidSearch
+                  ? `UID "${activeUidSearch}" kisi match mein join nahi mila.`
+                  : "Is filter ya search ke mutabik koi match nahi mila."}
+              </p>
             </div>
           ) : (
             filteredTournaments.map((match) => {
@@ -1888,6 +1970,9 @@ export default function Home() {
                   p.uid === user.uid ||
                   (userData?.freeFireUid && String(p.ffUid || "").trim() === String(userData.freeFireUid).trim())
               );
+              const matchedUidPlayers = activeUidSearch
+                ? (match.players || []).filter((p) => playerMatchesUidQuery(p, activeUidSearch))
+                : [];
               const isRemoved = isPlayerKickedFromMatch(match, user.uid, userData?.freeFireUid);
               const slotLimit = Number(match.maxPlayers) || 48;
               const joinedCount = match.players?.length || 0;
@@ -1923,6 +2008,24 @@ export default function Home() {
                     <h3 className={`text-lg font-bold mt-2 ${titleText}`}>{match.title}</h3>
                     <p className={`text-sm font-semibold ${headingText} mt-1`}>Rate / Prize: {match.prizePool}</p>
                     <p className={`text-xs ${mutedText} mt-1`}>Players Joined: {joinedCount} / {slotLimit}</p>
+
+                    {matchedUidPlayers.length > 0 && (
+                      <div className={`mt-2.5 border px-3 py-2 rounded-lg text-xs font-mono ${subCardBg} border-yellow-500/50`}>
+                        <p className={`font-sans font-bold ${headingText} mb-1`}>
+                          🆔 Matched UID ({matchedUidPlayers.length}):
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {matchedUidPlayers.map((mp, mIdx) => (
+                            <span
+                              key={`${mp.uid || "u"}-${mIdx}`}
+                              className="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 px-2 py-0.5 rounded text-[11px]"
+                            >
+                              {mp.ffName || "Player"} • UID: {mp.ffUid || "N/A"}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     {isJoined ? (
                       <div className={`mt-3 border px-3 py-2.5 rounded-lg text-xs font-mono space-y-1.5 ${subCardBg} border-green-700/50 text-green-500`}>
@@ -2674,68 +2777,113 @@ export default function Home() {
           )}
 
           {adminSection === "players" && (
-            <div className={`border p-6 rounded-xl ${cardBg}`}>
-              <h2 className={`text-lg font-bold mb-3 ${headingText}`}>👥 Joined Players & Wallet Summary</h2>
+            <div className={`border p-6 rounded-xl space-y-4 ${cardBg}`}>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <h2 className={`text-lg font-bold ${headingText}`}>👥 Joined Players & Wallet Summary</h2>
+                <form onSubmit={handleUidSearchSubmit} className="flex gap-2 w-full sm:w-auto">
+                  <input
+                    type="text"
+                    placeholder="Player UID / IGN search..."
+                    value={uidSearchInput}
+                    onChange={(e) => setUidSearchInput(e.target.value)}
+                    className={`border px-3 py-2 rounded-lg text-xs font-mono w-full sm:w-60 ${inputBg}`}
+                  />
+                  <button
+                    type="submit"
+                    className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 text-xs font-extrabold px-3.5 py-2 rounded-lg cursor-pointer shrink-0 transition"
+                  >
+                    🔍 UID Search
+                  </button>
+                  {(uidSearchInput || activeUidSearch) && (
+                    <button
+                      type="button"
+                      onClick={handleClearUidSearch}
+                      className={`text-xs font-bold px-2.5 py-2 rounded-lg cursor-pointer shrink-0 transition ${tabInactive}`}
+                    >
+                      Reset
+                    </button>
+                  )}
+                </form>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {sortedTournaments.length === 0 ? (
                   <p className={`text-xs ${subtleText}`}>Koi match nahi hai.</p>
                 ) : (
-                  sortedTournaments.map(m => (
-                    <div key={m.id} className={`p-3 rounded-lg border space-y-2 h-fit ${subCardBg}`}>
-                      <p className={`text-xs font-bold ${headingText}`}>
-                        {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
-                      </p>
-                      {(!m.players || m.players.length === 0) ? (
-                        <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {m.players.map((p, i) => {
-                            const sum = getPlayerSummary(p.uid);
-                            return (
-                              <div key={i} className={`p-2 rounded border space-y-1 ${cardBg}`}>
-                                <div className="flex justify-between items-center gap-2 text-[11px] font-mono">
-                                  <span className={`truncate font-bold ${titleText}`}>{i+1}. {p.ffName}</span>
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="text-green-500">UID: {p.ffUid}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemovePlayerFromMatch(m.id, p)}
-                                      className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
-                                    >
-                                      Remove
-                                    </button>
+                  sortedTournaments.map(m => {
+                    const playersList = m.players || [];
+                    const visiblePlayers = activeUidSearch
+                      ? playersList.filter((p) => playerMatchesUidQuery(p, activeUidSearch))
+                      : playersList;
+
+                    if (activeUidSearch && visiblePlayers.length === 0) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={m.id} className={`p-3 rounded-lg border space-y-2 h-fit ${subCardBg}`}>
+                        <p className={`text-xs font-bold ${headingText}`}>
+                          {m.title} ({m.players?.length || 0} / {m.maxPlayers || 48} Players • Fee: {Number(m.entryFee) > 0 ? `₹${m.entryFee}` : "FREE"})
+                        </p>
+                        {visiblePlayers.length === 0 ? (
+                          <p className={`text-[10px] ${subtleText}`}>Abhi koi player join nahi hua.</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {visiblePlayers.map((p, i) => {
+                              const sum = getPlayerSummary(p.uid);
+                              const isHighlighted =
+                                Boolean(activeUidSearch) && playerMatchesUidQuery(p, activeUidSearch);
+                              return (
+                                <div
+                                  key={`${p.uid || "u"}-${i}`}
+                                  className={`p-2 rounded border space-y-1 ${cardBg} ${
+                                    isHighlighted ? "border-yellow-500 ring-1 ring-yellow-500/50" : ""
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-center gap-2 text-[11px] font-mono">
+                                    <span className={`truncate font-bold ${titleText}`}>{i+1}. {p.ffName}</span>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <span className="text-green-500">UID: {p.ffUid}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemovePlayerFromMatch(m.id, p)}
+                                        className="bg-red-600/80 hover:bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-sans font-bold cursor-pointer"
+                                      >
+                                        Remove
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className={`flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] ${mutedText}`}>
+                                    <span>Deposited: <strong className="text-emerald-500">₹{sum.approvedDepositSum}</strong></span>
+                                    <span>Left: <strong className={titleText}>₹{sum.mainBal}</strong> + <strong className={headingText}>₹{sum.bonusBal} Bonus</strong></span>
+                                    <span>Matches Joined: <strong className={titleText}>{sum.joinedMatchesCount}</strong></span>
                                   </div>
                                 </div>
-                                <div className={`flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] ${mutedText}`}>
-                                  <span>Deposited: <strong className="text-emerald-500">₹{sum.approvedDepositSum}</strong></span>
-                                  <span>Left: <strong className={titleText}>₹{sum.mainBal}</strong> + <strong className={headingText}>₹{sum.bonusBal} Bonus</strong></span>
-                                  <span>Matches Joined: <strong className={titleText}>{sum.joinedMatchesCount}</strong></span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        )}
 
-                      {m.kickedPlayers && m.kickedPlayers.length > 0 && (
-                        <div className={`pt-2 border-t ${borderDivider} space-y-1`}>
-                          <p className="text-[10px] font-bold text-red-500">🚫 Removed / Blocked From Rejoin:</p>
-                          {m.kickedPlayers.map((k, kIdx) => (
-                            <div key={kIdx} className={`flex justify-between items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border ${isDarkMode ? "text-slate-400 bg-red-950/20 border-red-900/40" : "text-red-800 bg-red-50 border-red-200"}`}>
-                              <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
-                              <button
-                                type="button"
-                                onClick={() => handleAllowBackPlayer(m.id, k)}
-                                className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-sans font-bold cursor-pointer shrink-0"
-                              >
-                                Allow Back
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
+                        {m.kickedPlayers && m.kickedPlayers.length > 0 && (
+                          <div className={`pt-2 border-t ${borderDivider} space-y-1`}>
+                            <p className="text-[10px] font-bold text-red-500">🚫 Removed / Blocked From Rejoin:</p>
+                            {m.kickedPlayers.map((k, kIdx) => (
+                              <div key={kIdx} className={`flex justify-between items-center gap-2 text-[10px] font-mono px-2 py-1 rounded border ${isDarkMode ? "text-slate-400 bg-red-950/20 border-red-900/40" : "text-red-800 bg-red-50 border-red-200"}`}>
+                                <span className="truncate">{k.ffName} (UID: {k.ffUid || "N/A"})</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAllowBackPlayer(m.id, k)}
+                                  className="bg-emerald-600/80 hover:bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded font-sans font-bold cursor-pointer shrink-0"
+                                >
+                                  Allow Back
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
